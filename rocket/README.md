@@ -4,6 +4,11 @@ A side-scrolling pixel-art rocket shooter with an upgradeable ship.
 Mandalorian/Grogu *themed* (original art — no copyrighted assets). Built with
 [Phaser 3](https://phaser.io/), no build step.
 
+> **Docs:** this README is player- and run-facing. For development see
+> [CLAUDE.md](CLAUDE.md) (orientation + how to add content + gotchas),
+> [ARCHITECTURE.md](ARCHITECTURE.md) (how the code works), and
+> [ROADMAP.md](ROADMAP.md) (built / planned / ideas).
+
 ## How to play
 
 - **Move:** Arrow keys or WASD
