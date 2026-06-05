@@ -22,6 +22,7 @@ class GameScene extends Phaser.Scene {
     this.ownedWeapons = saved.weapons.owned;
     this.activeWeapon = getWeapon(saved.weapons.active);
     this.vault = saved.beskar; // banked total at run start (updates on death)
+    this.grogu = computeGrogu(saved.grogu);
     this.maxHull = this.stats.maxHull;
     this.hull = this.maxHull;
     this.runBeskar = 0;
@@ -30,6 +31,10 @@ class GameScene extends Phaser.Scene {
     this.nextWave = 0;
     this.nextFire = 0;
     this.enemyId = 0;
+    this.now = 0;
+    this.wipeReadyAt = 0;          // Force Wipe ready immediately
+    this.nextMend = 0;             // set lazily on first frame
+    this.reviveLeft = this.grogu.reviveCharges;
     this.invuln = false;
     this.over = false;
     this.paused = false;
@@ -53,6 +58,7 @@ class GameScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-P', () => this.togglePause());
     this.input.keyboard.on('keydown-R', () => { if (this.paused) this.restartRun(); });
     this.input.keyboard.on('keydown-H', () => { if (this.paused) this.toHangar(); });
+    this.input.keyboard.on('keydown-F', () => this.forceWipe());
 
     // --- collisions ---
     this.physics.add.overlap(this.playerBullets, this.enemies, this.hitEnemy, null, this);
@@ -72,6 +78,8 @@ class GameScene extends Phaser.Scene {
       .setOrigin(1, 0).setDepth(20);
     this.hudWeapon = this.add.text(14, H - 28, '', {
       fontFamily: 'monospace', fontSize: '16px', color: '#7ef0ff' }).setDepth(20);
+    this.hudForce = this.add.text(W / 2, H - 26, '', {
+      fontFamily: 'monospace', fontSize: '16px', color: '#7ef0ff' }).setOrigin(0.5, 0).setDepth(20);
     this.add.text(W - 14, H - 26, 'Q switch · P pause', {
       fontFamily: 'monospace', fontSize: '13px', color: '#667' }).setOrigin(1, 0).setDepth(20);
     this.updateHud();
@@ -80,6 +88,7 @@ class GameScene extends Phaser.Scene {
   update(time, delta) {
     if (this.over || this.paused) return;
     const dt = delta / 1000;
+    this.now = time;
     this.elapsed += dt;
     this.stars.tilePositionX += dt * 70;
     this.score += dt * 10;
@@ -87,6 +96,8 @@ class GameScene extends Phaser.Scene {
     this.handleMovement();
     this.handleShooting(time);
     this.handleHoming();
+    this.handleMagnet();
+    this.handleMend(time);
     this.handleWaves();
     this.handleEnemyFire(time);
     this.cull();
@@ -163,6 +174,59 @@ class GameScene extends Phaser.Scene {
     Save.setActiveWeapon(next);
     this.updateHud();
     this.tweens.add({ targets: this.hudWeapon, scale: 1.25, yoyo: true, duration: 120 });
+  }
+
+  // ---- Grogu's Force perks ----
+  handleMagnet() {
+    const r = this.grogu.magnetRadius;
+    if (r <= 0 || !this.player) return;
+    const r2 = r * r;
+    this.pickups.getChildren().forEach((p) => {
+      const dx = this.player.x - p.x;
+      const dy = this.player.y - p.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < r2) {
+        const d = Math.sqrt(d2) || 1;
+        p.setVelocity((dx / d) * 280, (dy / d) * 280);
+      }
+    });
+  }
+
+  handleMend(time) {
+    if (this.grogu.mendEvery <= 0) return;
+    if (this.nextMend === 0) { this.nextMend = time + this.grogu.mendEvery; return; }
+    if (time > this.nextMend) {
+      this.nextMend = time + this.grogu.mendEvery;
+      if (this.hull < this.maxHull) {
+        this.hull += 1;
+        this.updateHud();
+        this.flashCenter('Grogu mends the hull');
+      }
+    }
+  }
+
+  forceWipe() {
+    if (this.over || this.paused || this.grogu.wipeLevel <= 0) return;
+    if (this.now < this.wipeReadyAt) return; // on cooldown
+    this.wipeReadyAt = this.now + this.grogu.wipeCooldown;
+    this.forcePulse();
+    this.enemyBullets.clear(true, true);
+    this.enemies.getChildren().slice().forEach((e) => { if (e.active) this.killEnemy(e); });
+  }
+
+  forcePulse() {
+    const ring = this.add.circle(this.player.x, this.player.y, 28, 0x7ef0ff, 0.25)
+      .setStrokeStyle(5, 0xbfefff, 0.9).setDepth(15);
+    this.tweens.add({ targets: ring, scale: 36, alpha: 0, duration: 450, ease: 'Cubic.out',
+      onComplete: () => ring.destroy() });
+  }
+
+  flashCenter(msg) {
+    const t = this.add.text(CONFIG.width / 2, CONFIG.height / 2 - 120, msg, {
+      fontFamily: 'monospace', fontSize: '24px', color: '#7ef0ff', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(32);
+    this.tweens.add({ targets: t, y: t.y - 30, alpha: 0, duration: 1200,
+      onComplete: () => t.destroy() });
   }
 
   // ---- spawning ----
@@ -273,15 +337,20 @@ class GameScene extends Phaser.Scene {
   // ---- effects / state ----
   killEnemy(enemy) {
     this.score += enemy.reward;
-    this.dropBeskar(enemy.x, enemy.y, enemy.reward);
+    // Lucky Frog: a chance for a bonus (multiplied) beskar drop.
+    let value = enemy.reward;
+    const lucky = this.grogu.luckyChance > 0 && Math.random() < this.grogu.luckyChance;
+    if (lucky) value = Math.round(value * this.grogu.luckyMult);
+    this.dropBeskar(enemy.x, enemy.y, value, lucky);
     this.boom(enemy.x, enemy.y);
     enemy.destroy();
   }
 
-  dropBeskar(x, y, value) {
+  dropBeskar(x, y, value, lucky) {
     const p = this.pickups.create(x, y, 'beskar');
     p.value = value;
     p.setVelocityX(-CONFIG.beskar.dropSpeed);
+    if (lucky) p.setTint(0x9a5cff); // bonus drops look special
     this.tweens.add({ targets: p, angle: 360, repeat: -1, duration: 1200 });
   }
 
@@ -296,6 +365,7 @@ class GameScene extends Phaser.Scene {
     this.hull -= 1;
     this.updateHud();
     if (this.hull <= 0) {
+      if (this.reviveLeft > 0) { this.forceRevive(); return; }
       this.endRun();
       return;
     }
@@ -304,6 +374,24 @@ class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: this.player, alpha: 0.3, yoyo: true,
       repeat: 5, duration: 110, onComplete: () => { this.player.alpha = 1; } });
     this.time.delayedCall(1000, () => {
+      this.invuln = false;
+      if (this.player.active) this.player.clearTint();
+    });
+  }
+
+  // Force Bond: Grogu pulls you back from the brink instead of dying.
+  forceRevive() {
+    this.reviveLeft -= 1;
+    this.hull = Math.min(this.maxHull, 2);
+    this.updateHud();
+    this.forcePulse();
+    this.enemyBullets.clear(true, true);
+    this.flashCenter('Grogu used the Force!');
+    this.invuln = true;
+    this.player.setTint(0x7ef0ff);
+    this.tweens.add({ targets: this.player, alpha: 0.3, yoyo: true,
+      repeat: 8, duration: 120, onComplete: () => { this.player.alpha = 1; } });
+    this.time.delayedCall(1600, () => {
       this.invuln = false;
       if (this.player.active) this.player.clearTint();
     });
@@ -419,5 +507,17 @@ class GameScene extends Phaser.Scene {
     this.hudBeskar.setText('+ ' + this.runBeskar + ' this run');
     const more = this.ownedWeapons.length > 1 ? '  [Q]' : '';
     this.hudWeapon.setText('▸ ' + this.activeWeapon.label + more);
+
+    // Force abilities indicator (only shows what you own)
+    let force = '';
+    let ready = false;
+    if (this.grogu.wipeLevel > 0) {
+      const cd = Math.max(0, this.wipeReadyAt - this.now);
+      ready = cd <= 0;
+      force = ready ? 'FORCE WIPE [F] ready' : 'FORCE WIPE [F] ' + Math.ceil(cd / 1000) + 's';
+    }
+    if (this.reviveLeft > 0) force += (force ? '   ' : '') + 'BOND x' + this.reviveLeft;
+    this.hudForce.setText(force);
+    this.hudForce.setColor(ready ? '#7ef0ff' : '#5a8aa0');
   }
 }

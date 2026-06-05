@@ -9,24 +9,33 @@ Mandalorian/Grogu *themed* (original art — no copyrighted assets). Built with
 - **Move:** Arrow keys or WASD
 - **Fire:** automatic — the ship auto-shoots, nothing to hold
 - **Switch weapon:** Q (cycles weapons you own)
+- **Force Wipe:** F (if you own Grogu's Force Wipe perk — clears the screen)
 - **Pause:** P (then Resume / Restart run / go to Hangar)
 - **Goal:** blast Imperial-style fighters, collect **beskar**, survive.
 - When your ship goes down, you keep the beskar you collected. Spend it in the
   **Hangar** between runs, then launch again — stronger.
 
 ### Hangar (between runs)
-Navigate with arrows/WASD, **ENTER** to buy/equip, **SPACE** to launch.
+Three columns — navigate with arrows/WASD, **ENTER** to buy/equip, **SPACE** to
+launch.
 
 **Stat upgrades:** Blaster Fire Rate (shoot faster) · Beskar Armor (+1 hull) ·
 Thrusters (fly faster).
+
+**Grogu's Gifts** (Force perks):
+- **Beskar Magnet** — pulls beskar toward you from a distance (radius per level)
+- **Force Wipe** — press **F** to clear the whole screen (cooldown shrinks per level)
+- **Force Mend** — Grogu slowly repairs the hull over time
+- **Lucky Frog** — chance for enemies to drop bonus (double) beskar
+- **Force Bond** — once per run, Grogu revives you instead of dying
 
 **Weapons** (buy with beskar, then ENTER to equip; switch in-flight with Q):
 Blaster (starter) · Twin Cannon · Spread Shot · Scatter Gun · Vulcan ·
 Homing Missiles · Laser Lance · plus combinations Beskar Storm and
 Darksaber Array.
 
-Progress (beskar, upgrades, owned/active weapons) is saved in your browser
-(`localStorage`).
+Progress (beskar, upgrades, Grogu perks, owned/active weapons) is saved in your
+browser (`localStorage`).
 
 ## How to run
 
@@ -55,6 +64,9 @@ then open **http://localhost:8000**.
 - **`src/weapons.js`** — the weapon registry. Each weapon defines its own
   `fire()` shot pattern; add one entry and it appears in the hangar and works
   in-flight automatically.
+- **`src/grogu.js`** — Grogu's Force perks. Add an entry and it appears in the
+  hangar's GROGU column; `computeGrogu()` turns owned levels into the values
+  the game uses.
 - **`src/textures.js`** — the procedural pixel-art sprites/bullets. Swap these
   for real PNG sprite sheets later without touching the scenes.
 - **`src/scenes/`** — `Boot → Menu → Game → Shop`.
