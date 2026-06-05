@@ -21,6 +21,7 @@ class GameScene extends Phaser.Scene {
     this.stats = computeStats(saved.upgrades);
     this.ownedWeapons = saved.weapons.owned;
     this.activeWeapon = getWeapon(saved.weapons.active);
+    this.vault = saved.beskar; // banked total at run start (updates on death)
     this.maxHull = this.stats.maxHull;
     this.hull = this.maxHull;
     this.runBeskar = 0;
@@ -64,7 +65,10 @@ class GameScene extends Phaser.Scene {
     this.hudHull = this.add.text(14, 12, '', { ...hud, color: '#ff7a6b' }).setDepth(20);
     this.hudScore = this.add.text(W / 2, 12, '', { ...hud, color: '#9fb0d0' })
       .setOrigin(0.5, 0).setDepth(20);
-    this.hudBeskar = this.add.text(W - 14, 12, '', { ...hud, color: '#ffd24a' })
+    this.hudVault = this.add.text(W - 14, 12, '', { ...hud, color: '#ffd24a' })
+      .setOrigin(1, 0).setDepth(20);
+    this.hudBeskar = this.add.text(W - 14, 38, '', {
+      fontFamily: 'monospace', fontSize: '16px', color: '#fff0a8' })
       .setOrigin(1, 0).setDepth(20);
     this.hudWeapon = this.add.text(14, H - 28, '', {
       fontFamily: 'monospace', fontSize: '16px', color: '#7ef0ff' }).setDepth(20);
@@ -411,7 +415,8 @@ class GameScene extends Phaser.Scene {
     const lost = '·'.repeat(Math.max(0, this.maxHull - this.hull));
     this.hudHull.setText('HULL ' + full + lost);
     this.hudScore.setText('SCORE ' + Math.floor(this.score));
-    this.hudBeskar.setText('◈ ' + this.runBeskar);
+    this.hudVault.setText('VAULT ◈ ' + this.vault);
+    this.hudBeskar.setText('+ ' + this.runBeskar + ' this run');
     const more = this.ownedWeapons.length > 1 ? '  [Q]' : '';
     this.hudWeapon.setText('▸ ' + this.activeWeapon.label + more);
   }
