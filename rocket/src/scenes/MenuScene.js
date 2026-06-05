@@ -26,8 +26,12 @@ class MenuScene extends Phaser.Scene {
       fontFamily: 'monospace', fontSize: '20px', color: '#9fb0d0',
     }).setOrigin(0.5);
 
-    const balance = Save.load().beskar;
-    this.add.text(W / 2, H - 150, '◈ ' + balance + ' beskar in the vault', {
+    const saved = Save.load();
+    const lvl = Phaser.Math.Clamp(saved.level || 0, 0, LEVELS.length - 1);
+    this.add.text(W / 2, H - 178, 'Level ' + (lvl + 1) + ' · ' + LEVELS[lvl].name, {
+      fontFamily: 'monospace', fontSize: '18px', color: '#7ef0ff',
+    }).setOrigin(0.5);
+    this.add.text(W / 2, H - 150, '◈ ' + saved.beskar + ' beskar in the vault', {
       fontFamily: 'monospace', fontSize: '18px', color: '#ffd24a',
     }).setOrigin(0.5);
 
@@ -38,8 +42,8 @@ class MenuScene extends Phaser.Scene {
       repeat: -1, duration: 700 });
 
     this.add.text(W / 2, H - 55,
-      'Move: Arrows / WASD     Shoot: SPACE     Hangar: H', {
-      fontFamily: 'monospace', fontSize: '16px', color: '#667' }).setOrigin(0.5);
+      'Move: Arrows/WASD   Auto-fire   Q weapon   F force   P pause   H hangar', {
+      fontFamily: 'monospace', fontSize: '15px', color: '#667' }).setOrigin(0.5);
 
     this.input.keyboard.once('keydown-SPACE', () => this.scene.start('Game'));
     this.input.keyboard.once('keydown-H', () => this.scene.start('Shop'));

@@ -1,8 +1,9 @@
-// GameScene — the core loop: fly, auto-shoot, collect beskar, take damage, die.
-// On death it banks the run's beskar and routes to the hangar shop.
+// GameScene — the core loop for one LEVEL: clear the waves, then beat the boss.
+// Death banks beskar and returns to the hangar (retry same level). Beating the
+// boss advances to the next level.
 //
-// Controls: move = Arrows/WASD, Q = switch weapon, P = pause. The ship fires
-// automatically (auto-shoot), so there's nothing to hold down.
+// Controls: move = Arrows/WASD, Q = switch weapon, F = Force Wipe, P = pause.
+// The ship fires automatically (auto-shoot).
 
 class GameScene extends Phaser.Scene {
   constructor() {
@@ -13,15 +14,20 @@ class GameScene extends Phaser.Scene {
     const W = CONFIG.width;
     const H = CONFIG.height;
 
-    // --- background ---
-    this.stars = this.add.tileSprite(0, 0, W, H, 'startile').setOrigin(0);
+    // --- which level are we on? ---
+    const saved = Save.load();
+    this.levelIndex = Phaser.Math.Clamp(saved.level || 0, 0, LEVELS.length - 1);
+    this.level = LEVELS[this.levelIndex];
+    this.waves = this.level.waves;
+
+    // --- background (tinted per level) ---
+    this.stars = this.add.tileSprite(0, 0, W, H, 'startile').setOrigin(0).setTint(this.level.tint);
 
     // --- run state (effective stats + loadout from the save) ---
-    const saved = Save.load();
     this.stats = computeStats(saved.upgrades);
     this.ownedWeapons = saved.weapons.owned;
     this.activeWeapon = getWeapon(saved.weapons.active);
-    this.vault = saved.beskar; // banked total at run start (updates on death)
+    this.vault = saved.beskar;
     this.grogu = computeGrogu(saved.grogu);
     this.maxHull = this.stats.maxHull;
     this.hull = this.maxHull;
@@ -29,16 +35,20 @@ class GameScene extends Phaser.Scene {
     this.score = 0;
     this.elapsed = 0;
     this.nextWave = 0;
+    this.pendingSpawns = 0;
     this.nextFire = 0;
     this.enemyId = 0;
     this.now = 0;
-    this.wipeReadyAt = 0;          // Force Wipe ready immediately
-    this.nextMend = 0;             // set lazily on first frame
+    this.wipeReadyAt = 0;
+    this.nextMend = 0;
     this.reviveLeft = this.grogu.reviveCharges;
     this.invuln = false;
-    this.over = false;
+    this.over = false;     // ship destroyed
+    this.won = false;      // level cleared
     this.paused = false;
     this.pauseUI = [];
+    this.boss = null;
+    this.bossPending = false;
 
     // --- groups ---
     this.playerBullets = this.physics.add.group();
@@ -54,13 +64,13 @@ class GameScene extends Phaser.Scene {
     // --- input ---
     this.cursors = this.input.keyboard.createCursorKeys();
     this.keys = this.input.keyboard.addKeys('W,A,S,D');
-    this.input.keyboard.on('keydown-Q', () => { if (!this.paused && !this.over) this.cycleWeapon(); });
+    this.input.keyboard.on('keydown-Q', () => { if (!this.paused && !this.over && !this.won) this.cycleWeapon(); });
     this.input.keyboard.on('keydown-P', () => this.togglePause());
     this.input.keyboard.on('keydown-R', () => { if (this.paused) this.restartRun(); });
     this.input.keyboard.on('keydown-H', () => { if (this.paused) this.toHangar(); });
     this.input.keyboard.on('keydown-F', () => this.forceWipe());
 
-    // --- collisions ---
+    // --- collisions (enemy waves; boss overlaps are added when it spawns) ---
     this.physics.add.overlap(this.playerBullets, this.enemies, this.hitEnemy, null, this);
     this.physics.add.overlap(this.player, this.enemies, this.crashIntoEnemy, null, this);
     this.physics.add.overlap(this.enemyBullets, this.player, this.hitByBullet, null, this);
@@ -80,13 +90,15 @@ class GameScene extends Phaser.Scene {
       fontFamily: 'monospace', fontSize: '16px', color: '#7ef0ff' }).setDepth(20);
     this.hudForce = this.add.text(W / 2, H - 26, '', {
       fontFamily: 'monospace', fontSize: '16px', color: '#7ef0ff' }).setOrigin(0.5, 0).setDepth(20);
-    this.add.text(W - 14, H - 26, 'Q switch · P pause', {
+    this.add.text(W - 14, H - 26, 'Q switch · F force · P pause', {
       fontFamily: 'monospace', fontSize: '13px', color: '#667' }).setOrigin(1, 0).setDepth(20);
     this.updateHud();
+
+    this.flashCenter('LEVEL ' + (this.levelIndex + 1) + ' · ' + this.level.name);
   }
 
   update(time, delta) {
-    if (this.over || this.paused) return;
+    if (this.over || this.won || this.paused) return;
     const dt = delta / 1000;
     this.now = time;
     this.elapsed += dt;
@@ -99,6 +111,8 @@ class GameScene extends Phaser.Scene {
     this.handleMagnet();
     this.handleMend(time);
     this.handleWaves();
+    this.handleBossTrigger();
+    this.updateBoss(time);
     this.handleEnemyFire(time);
     this.cull();
     this.updateHud();
@@ -119,7 +133,7 @@ class GameScene extends Phaser.Scene {
     this.companion.y = this.player.y + 16;
   }
 
-  // ---- weapons / shooting (auto-shoot: fires on its own cooldown) ----
+  // ---- weapons / shooting (auto-shoot) ----
   handleShooting(time) {
     if (time > this.nextFire) {
       this.activeWeapon.fire(this, this.player.x + 26, this.player.y);
@@ -127,7 +141,6 @@ class GameScene extends Phaser.Scene {
     }
   }
 
-  // Spawn one player shot. See weapons.js for the opts contract.
   firePlayerShot(x, y, angleDeg, opts = {}) {
     const b = this.playerBullets.create(x, y, opts.tex || 'pbullet');
     const speed = this.stats.bulletSpeed * (opts.speedMult || 1);
@@ -144,7 +157,7 @@ class GameScene extends Phaser.Scene {
   handleHoming() {
     this.playerBullets.getChildren().forEach((b) => {
       if (!b.homing || !b.active) return;
-      const target = this.nearestEnemy(b.x, b.y);
+      const target = this.nearestTarget(b.x, b.y);
       if (!target) return;
       const desired = Math.atan2(target.y - b.y, target.x - b.x);
       const current = Math.atan2(b.body.velocity.y, b.body.velocity.x);
@@ -155,7 +168,7 @@ class GameScene extends Phaser.Scene {
     });
   }
 
-  nearestEnemy(x, y) {
+  nearestTarget(x, y) {
     let best = null;
     let bestD = Infinity;
     this.enemies.getChildren().forEach((e) => {
@@ -163,6 +176,10 @@ class GameScene extends Phaser.Scene {
       const d = (e.x - x) * (e.x - x) + (e.y - y) * (e.y - y);
       if (d < bestD) { bestD = d; best = e; }
     });
+    if (this.boss && this.boss.active) {
+      const d = (this.boss.x - x) * (this.boss.x - x) + (this.boss.y - y) * (this.boss.y - y);
+      if (d < bestD) best = this.boss;
+    }
     return best;
   }
 
@@ -206,12 +223,17 @@ class GameScene extends Phaser.Scene {
   }
 
   forceWipe() {
-    if (this.over || this.paused || this.grogu.wipeLevel <= 0) return;
-    if (this.now < this.wipeReadyAt) return; // on cooldown
+    if (this.over || this.won || this.paused || this.grogu.wipeLevel <= 0) return;
+    if (this.now < this.wipeReadyAt) return;
     this.wipeReadyAt = this.now + this.grogu.wipeCooldown;
     this.forcePulse();
     this.enemyBullets.clear(true, true);
     this.enemies.getChildren().slice().forEach((e) => { if (e.active) this.killEnemy(e); });
+    // a Force Wipe also chips the boss
+    if (this.boss && this.boss.active) {
+      this.boss.hp -= 5;
+      if (this.boss.hp <= 0) this.defeatBoss();
+    }
   }
 
   forcePulse() {
@@ -229,41 +251,26 @@ class GameScene extends Phaser.Scene {
       onComplete: () => t.destroy() });
   }
 
-  // ---- spawning ----
+  // ---- waves ----
   handleWaves() {
-    while (this.nextWave < WAVES.length && this.elapsed >= WAVES[this.nextWave].at) {
-      this.spawnWave(WAVES[this.nextWave]);
+    while (this.nextWave < this.waves.length && this.elapsed >= this.waves[this.nextWave].at) {
+      this.spawnWave(this.waves[this.nextWave]);
       this.nextWave++;
-    }
-    if (this.nextWave >= WAVES.length && !this.endlessTimer) {
-      this.startEndless();
     }
   }
 
   spawnWave(wave) {
     for (let i = 0; i < wave.count; i++) {
-      this.time.delayedCall(i * 450, () => this.spawnEnemy(wave.type));
+      this.pendingSpawns++;
+      this.time.delayedCall(i * 450, () => {
+        this.pendingSpawns--;
+        this.spawnEnemy(wave.type);
+      });
     }
   }
 
-  startEndless() {
-    this.endlessDelay = 1200;
-    this.endlessTimer = this.time.addEvent({
-      delay: this.endlessDelay, loop: true,
-      callback: () => {
-        if (this.over) return;
-        this.spawnEnemy(Math.random() < 0.6 ? 'grunt' : 'shooter');
-        if (this.endlessDelay > 450) {
-          this.endlessDelay -= 30;
-          this.endlessTimer.reset({ delay: this.endlessDelay, loop: true,
-            callback: this.endlessTimer.callback, callbackScope: this });
-        }
-      },
-    });
-  }
-
   spawnEnemy(type) {
-    if (this.over) return;
+    if (this.over || this.won) return;
     const def = CONFIG.enemies[type];
     const y = Phaser.Math.Between(40, CONFIG.height - 40);
     const e = this.enemies.create(CONFIG.width + 30, y, def.texture);
@@ -288,17 +295,136 @@ class GameScene extends Phaser.Scene {
     });
   }
 
+  // ---- boss ----
+  // Once every wave has been dispatched and the screen is clear, the boss enters.
+  handleBossTrigger() {
+    if (this.boss || this.bossPending) return;
+    if (this.nextWave < this.waves.length) return;
+    if (this.pendingSpawns > 0 || this.enemies.getLength() > 0) return;
+    this.bossPending = true;
+    this.flashCenter('⚠  ' + this.level.boss.name.toUpperCase() + ' INCOMING');
+    this.time.delayedCall(1600, () => this.spawnBoss());
+  }
+
+  spawnBoss() {
+    if (this.over || this.won) return;
+    const W = CONFIG.width;
+    const H = CONFIG.height;
+    const def = this.level.boss;
+    const boss = this.physics.add.sprite(W + 100, H / 2, def.texture);
+    boss.hp = def.hp;
+    boss.maxHp = def.hp;
+    boss.bossName = def.name;
+    boss.pattern = def.pattern;
+    boss.bulletSpeed = def.bulletSpeed;
+    boss.fireEvery = def.fireEvery;
+    boss.speedY = def.speedY;
+    boss.reward = def.reward;
+    boss.entering = true;
+    boss.targetX = W * 0.8;
+    boss.nextShot = this.now + 1500;
+    boss.setVelocityX(-170);
+    this.boss = boss;
+
+    this.physics.add.overlap(this.playerBullets, boss, this.hitBoss, null, this);
+    this.physics.add.overlap(this.player, boss, this.crashIntoBoss, null, this);
+
+    // boss health bar
+    this.bossLabel = this.add.text(W / 2, 40, def.name, {
+      fontFamily: 'monospace', fontSize: '16px', color: '#ffd24a' }).setOrigin(0.5).setDepth(21);
+    this.bossBarBg = this.add.rectangle(W / 2, 62, 404, 16, 0x10151f, 0.85)
+      .setStrokeStyle(2, 0x55617f).setDepth(20);
+    this.bossBarFill = this.add.rectangle(W / 2 - 200, 62, 400, 10, 0xff5a3c)
+      .setOrigin(0, 0.5).setDepth(21);
+  }
+
+  updateBoss(time) {
+    const boss = this.boss;
+    if (!boss || !boss.active) return;
+    if (boss.entering) {
+      if (boss.x <= boss.targetX) {
+        boss.x = boss.targetX;
+        boss.entering = false;
+        boss.setVelocity(0, boss.speedY);
+      }
+      return;
+    }
+    if (boss.y <= 90 && boss.body.velocity.y < 0) boss.setVelocityY(Math.abs(boss.speedY));
+    else if (boss.y >= CONFIG.height - 90 && boss.body.velocity.y > 0) boss.setVelocityY(-Math.abs(boss.speedY));
+    if (time > boss.nextShot) {
+      boss.nextShot = time + boss.fireEvery;
+      this.bossFire();
+    }
+    this.bossBarFill.scaleX = Phaser.Math.Clamp(boss.hp / boss.maxHp, 0, 1);
+  }
+
+  bossShot(angleDeg, speed) {
+    const b = this.enemyBullets.create(this.boss.x - 40, this.boss.y, 'ebullet');
+    const rad = Phaser.Math.DegToRad(angleDeg);
+    b.setVelocity(Math.cos(rad) * speed, Math.sin(rad) * speed);
+  }
+
+  bossFire() {
+    const sp = this.boss.bulletSpeed;
+    if (this.boss.pattern === 'spread') {
+      [165, 180, 195].forEach((a) => this.bossShot(a, sp));
+    } else if (this.boss.pattern === 'aimed') {
+      const a = Phaser.Math.RadToDeg(Math.atan2(this.player.y - this.boss.y, this.player.x - this.boss.x));
+      this.bossShot(a, sp);
+    } else { // burst: 3 shots fanned around the player's direction
+      const base = Phaser.Math.RadToDeg(Math.atan2(this.player.y - this.boss.y, this.player.x - this.boss.x));
+      [-12, 0, 12].forEach((d) => this.bossShot(base + d, sp));
+    }
+  }
+
+  hitBoss(a, b) {
+    const bullet = this.playerBullets.contains(a) ? a : b;
+    if (!this.boss || !this.boss.active || !bullet || !bullet.active) return;
+    if (bullet.pierce) {
+      if (!bullet.hitIds) bullet.hitIds = [];
+      if (bullet.hitIds.includes('boss')) return;
+      bullet.hitIds.push('boss');
+    } else {
+      bullet.destroy();
+    }
+    this.boss.hp -= (bullet.damage || 1);
+    this.boss.setTintFill(0xffffff);
+    this.time.delayedCall(50, () => this.boss && this.boss.active && this.boss.clearTint());
+    if (this.boss.hp <= 0) this.defeatBoss();
+  }
+
+  crashIntoBoss() {
+    this.damage();
+  }
+
+  defeatBoss() {
+    const boss = this.boss;
+    if (!boss) return;
+    const bx = boss.x;
+    const by = boss.y;
+    const reward = boss.reward;
+    this.boss = null;
+    for (let i = 0; i < 8; i++) {
+      this.time.delayedCall(i * 70, () =>
+        this.boom(bx + Phaser.Math.Between(-40, 40), by + Phaser.Math.Between(-30, 30)));
+    }
+    boss.destroy();
+    this.bossLabel.destroy();
+    this.bossBarBg.destroy();
+    this.bossBarFill.destroy();
+    this.enemyBullets.clear(true, true);
+    this.runBeskar += reward;
+    this.score += reward * 2;
+    this.updateHud();
+    this.time.delayedCall(800, () => this.levelComplete());
+  }
+
   // ---- collisions ----
-  // NOTE: Phaser normalizes overlap(group, sprite) to call back sprite-first,
-  // so we never assume argument order — we identify each object explicitly and
-  // never destroy the player by accident.
   hitEnemy(a, b) {
     const enemy = this.enemies.contains(a) ? a : b;
     const bullet = enemy === a ? b : a;
     if (!enemy || !enemy.active || !bullet || !bullet.active) return;
-
     if (bullet.pierce) {
-      // a beam can hit many enemies, but each only once
       if (!bullet.hitIds) bullet.hitIds = [];
       if (bullet.hitIds.includes(enemy.eid)) return;
       bullet.hitIds.push(enemy.eid);
@@ -337,7 +463,6 @@ class GameScene extends Phaser.Scene {
   // ---- effects / state ----
   killEnemy(enemy) {
     this.score += enemy.reward;
-    // Lucky Frog: a chance for a bonus (multiplied) beskar drop.
     let value = enemy.reward;
     const lucky = this.grogu.luckyChance > 0 && Math.random() < this.grogu.luckyChance;
     if (lucky) value = Math.round(value * this.grogu.luckyMult);
@@ -350,7 +475,7 @@ class GameScene extends Phaser.Scene {
     const p = this.pickups.create(x, y, 'beskar');
     p.value = value;
     p.setVelocityX(-CONFIG.beskar.dropSpeed);
-    if (lucky) p.setTint(0x9a5cff); // bonus drops look special
+    if (lucky) p.setTint(0x9a5cff);
     this.tweens.add({ targets: p, angle: 360, repeat: -1, duration: 1200 });
   }
 
@@ -361,7 +486,7 @@ class GameScene extends Phaser.Scene {
   }
 
   damage() {
-    if (this.invuln || this.over) return;
+    if (this.invuln || this.over || this.won) return;
     this.hull -= 1;
     this.updateHud();
     if (this.hull <= 0) {
@@ -379,7 +504,6 @@ class GameScene extends Phaser.Scene {
     });
   }
 
-  // Force Bond: Grogu pulls you back from the brink instead of dying.
   forceRevive() {
     this.reviveLeft -= 1;
     this.hull = Math.min(this.maxHull, 2);
@@ -397,7 +521,6 @@ class GameScene extends Phaser.Scene {
     });
   }
 
-  // bank the run's beskar exactly once
   bankRun() {
     if (this.runBeskar > 0) {
       Save.addBeskar(this.runBeskar);
@@ -408,7 +531,6 @@ class GameScene extends Phaser.Scene {
   endRun() {
     this.over = true;
     this.physics.pause();
-    if (this.endlessTimer) this.endlessTimer.remove();
     this.bankRun();
 
     const W = CONFIG.width;
@@ -431,9 +553,44 @@ class GameScene extends Phaser.Scene {
     });
   }
 
+  levelComplete() {
+    if (this.won) return;
+    this.won = true;
+    this.physics.pause();
+    this.bankRun();
+
+    const next = this.levelIndex + 1;
+    const hasNext = next < LEVELS.length;
+    Save.setLevel(hasNext ? next : 0); // loop back to level 1 after the finale
+
+    const W = CONFIG.width;
+    const H = CONFIG.height;
+    this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.6).setDepth(30);
+    this.add.text(W / 2, H / 2 - 70, 'LEVEL COMPLETE', {
+      fontFamily: 'monospace', fontSize: '52px', color: '#7fe07f', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(31);
+    const sub = hasNext ? 'Next: ' + LEVELS[next].name
+      : 'GALAXY SAVED! A new run begins — keep your gear.';
+    this.add.text(W / 2, H / 2 - 10, sub, {
+      fontFamily: 'monospace', fontSize: '22px', color: '#ffd24a',
+    }).setOrigin(0.5).setDepth(31);
+    this.add.text(W / 2, H / 2 + 28, '◈ ' + Save.load().beskar + ' beskar in the vault', {
+      fontFamily: 'monospace', fontSize: '18px', color: '#fff0a8',
+    }).setOrigin(0.5).setDepth(31);
+
+    const prompt = this.add.text(W / 2, H / 2 + 80, 'Press SPACE for the Hangar', {
+      fontFamily: 'monospace', fontSize: '22px', color: '#ffffff',
+    }).setOrigin(0.5).setDepth(31);
+    this.tweens.add({ targets: prompt, alpha: 0.2, yoyo: true, repeat: -1, duration: 700 });
+
+    this.time.delayedCall(600, () => {
+      this.input.keyboard.once('keydown-SPACE', () => this.scene.start('Shop'));
+    });
+  }
+
   // ---- pause menu ----
   togglePause() {
-    if (this.over) return;
+    if (this.over || this.won) return;
     if (this.paused) this.resumeGame();
     else this.pauseGame();
   }
@@ -467,7 +624,6 @@ class GameScene extends Phaser.Scene {
     this.paused = false;
   }
 
-  // leave time/physics in a clean state before swapping scenes
   clearPause() {
     this.tweens.resumeAll();
     this.time.paused = false;
@@ -493,7 +649,7 @@ class GameScene extends Phaser.Scene {
     const H = CONFIG.height;
     const off = (o) => o.x > W + 60 || o.x < -60 || o.y < -60 || o.y > H + 60;
     this.playerBullets.getChildren().forEach((b) => { if (off(b)) b.destroy(); });
-    this.enemyBullets.getChildren().forEach((b) => { if (b.x < -40) b.destroy(); });
+    this.enemyBullets.getChildren().forEach((b) => { if (off(b)) b.destroy(); });
     this.enemies.getChildren().forEach((e) => { if (e.x < -50) e.destroy(); });
     this.pickups.getChildren().forEach((p) => { if (p.x < -40) p.destroy(); });
   }
@@ -502,13 +658,13 @@ class GameScene extends Phaser.Scene {
     const full = '♥'.repeat(Math.max(0, this.hull));
     const lost = '·'.repeat(Math.max(0, this.maxHull - this.hull));
     this.hudHull.setText('HULL ' + full + lost);
-    this.hudScore.setText('SCORE ' + Math.floor(this.score));
+    this.hudScore.setText('LVL ' + (this.levelIndex + 1) + '  SCORE ' + Math.floor(this.score));
     this.hudVault.setText('VAULT ◈ ' + this.vault);
     this.hudBeskar.setText('+ ' + this.runBeskar + ' this run');
+
     const more = this.ownedWeapons.length > 1 ? '  [Q]' : '';
     this.hudWeapon.setText('▸ ' + this.activeWeapon.label + more);
 
-    // Force abilities indicator (only shows what you own)
     let force = '';
     let ready = false;
     if (this.grogu.wipeLevel > 0) {

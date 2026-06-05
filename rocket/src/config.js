@@ -1,5 +1,5 @@
 // config.js — all the balance knobs in one place.
-// Tweak numbers here to retune the game; tweak WAVES to change the level.
+// Tweak numbers here to retune the game; tweak LEVELS to change the levels/bosses.
 
 const CONFIG = {
   width: 960,
@@ -23,14 +23,54 @@ const CONFIG = {
   beskar: { dropSpeed: 120 }, // how fast collected beskar drifts left
 };
 
-// The level, as data. Each wave spawns `count` enemies of `type`,
-// staggered, once the run clock passes `at` seconds.
-// After the last wave, GameScene switches to endless escalating spawns.
-const WAVES = [
-  { at: 1,  type: 'grunt',   count: 3 },
-  { at: 5,  type: 'grunt',   count: 4 },
-  { at: 9,  type: 'shooter', count: 2 },
-  { at: 14, type: 'grunt',   count: 5 },
-  { at: 19, type: 'shooter', count: 3 },
-  { at: 25, type: 'grunt',   count: 6 },
+// The levels, as data. Each level: a list of waves (spawn `count` enemies of
+// `type`, staggered, once the run clock passes `at` seconds), then — once the
+// screen is cleared — a BOSS arrives. Beat the boss to complete the level.
+//
+// Boss fields:
+//   name, texture, hp, reward (beskar on kill)
+//   speedY     vertical patrol speed (px/sec)
+//   fireEvery  ms between shots
+//   bulletSpeed
+//   pattern    'spread' | 'aimed' | 'burst'
+//   tint       starfield tint to give the level its own mood
+const LEVELS = [
+  {
+    name: 'Asteroid Field',
+    tint: 0xffffff,
+    waves: [
+      { at: 1, type: 'grunt', count: 3 },
+      { at: 5, type: 'grunt', count: 4 },
+      { at: 9, type: 'shooter', count: 2 },
+      { at: 13, type: 'grunt', count: 5 },
+    ],
+    boss: { name: 'Mining Hauler', texture: 'boss1', hp: 36, reward: 120,
+            speedY: 90, fireEvery: 1300, bulletSpeed: 300, pattern: 'spread' },
+  },
+  {
+    name: 'Imperial Fleet',
+    tint: 0xc8b4ff,
+    waves: [
+      { at: 1, type: 'shooter', count: 2 },
+      { at: 5, type: 'grunt', count: 5 },
+      { at: 9, type: 'shooter', count: 3 },
+      { at: 13, type: 'grunt', count: 6 },
+      { at: 17, type: 'shooter', count: 3 },
+    ],
+    boss: { name: 'Imperial Cruiser', texture: 'boss2', hp: 64, reward: 200,
+            speedY: 120, fireEvery: 1050, bulletSpeed: 340, pattern: 'aimed' },
+  },
+  {
+    name: 'Planet Surface',
+    tint: 0xffc7a0,
+    waves: [
+      { at: 1, type: 'grunt', count: 5 },
+      { at: 5, type: 'shooter', count: 3 },
+      { at: 9, type: 'grunt', count: 6 },
+      { at: 13, type: 'shooter', count: 4 },
+      { at: 17, type: 'grunt', count: 7 },
+    ],
+    boss: { name: 'Imperial Walker', texture: 'boss3', hp: 96, reward: 320,
+            speedY: 140, fireEvery: 850, bulletSpeed: 380, pattern: 'burst' },
+  },
 ];

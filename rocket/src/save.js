@@ -7,7 +7,7 @@ const Save = {
 
   defaults() {
     return {
-      beskar: 0, upgrades: {}, grogu: {},
+      beskar: 0, level: 0, upgrades: {}, grogu: {},
       weapons: { owned: [DEFAULT_WEAPON], active: DEFAULT_WEAPON },
     };
   },
@@ -29,6 +29,7 @@ const Save = {
         const d = JSON.parse(raw);
         return {
           beskar: d.beskar || 0,
+          level: typeof d.level === 'number' ? d.level : 0,
           upgrades: d.upgrades || {},
           grogu: d.grogu || {},
           weapons: this.normWeapons(d.weapons),
@@ -110,6 +111,14 @@ const Save = {
     s.grogu[id] = level + 1;
     this.save(s);
     return { ok: true, state: s };
+  },
+
+  // Set the current level index (the level the next run will start on).
+  setLevel(n) {
+    const s = this.load();
+    s.level = Math.max(0, n | 0);
+    this.save(s);
+    return s;
   },
 
   // Set the active weapon (used by in-flight cycling). Only if owned.

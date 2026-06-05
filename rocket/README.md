@@ -11,9 +11,11 @@ Mandalorian/Grogu *themed* (original art — no copyrighted assets). Built with
 - **Switch weapon:** Q (cycles weapons you own)
 - **Force Wipe:** F (if you own Grogu's Force Wipe perk — clears the screen)
 - **Pause:** P (then Resume / Restart run / go to Hangar)
-- **Goal:** blast Imperial-style fighters, collect **beskar**, survive.
-- When your ship goes down, you keep the beskar you collected. Spend it in the
-  **Hangar** between runs, then launch again — stronger.
+- **Goal:** clear each level's waves, then **defeat the boss** to advance.
+- **Levels:** Asteroid Field → Imperial Fleet → Planet Surface, each ending in a
+  boss fight (with a boss health bar). Beating a boss unlocks the next level.
+- When your ship goes down, you keep the beskar you collected and retry the same
+  level. Spend beskar in the **Hangar** between runs, then launch again — stronger.
 
 ### Hangar (between runs)
 Three columns — navigate with arrows/WASD, **ENTER** to buy/equip, **SPACE** to
@@ -57,8 +59,9 @@ then open **http://localhost:8000**.
 
 ## How to tinker
 
-- **`src/config.js`** — balance knobs (speeds, hull, fire rate) and the `WAVES`
-  array that defines the level. Edit `WAVES` to change difficulty/pacing.
+- **`src/config.js`** — balance knobs (speeds, hull, fire rate) and the `LEVELS`
+  array: each level's waves plus its boss (hp, fire pattern, reward, tint). Add a
+  level by appending an entry.
 - **`src/upgrades.js`** — the stat-upgrade registry. Add one entry and it shows
   up in the hangar and affects the ship automatically.
 - **`src/weapons.js`** — the weapon registry. Each weapon defines its own
@@ -72,6 +75,5 @@ then open **http://localhost:8000**.
 - **`src/scenes/`** — `Boot → Menu → Game → Shop`.
 
 ## Roadmap (next iterations)
-Boss fights → 3 distinct themed levels (Asteroid Field / Imperial Fleet /
-Planet Surface) → Grogu Force-blast special → mid-flight weapon power-up
-pickups → sound effects → real pixel-art sprite sheets.
+Distinct themed art/terrain per level → boss attack-pattern variety & phases →
+mid-flight weapon power-up pickups → sound effects → real pixel-art sprite sheets.

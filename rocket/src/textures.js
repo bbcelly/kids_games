@@ -104,6 +104,46 @@ function buildTextures(scene) {
     px(g, 0xffffff, 36, 1, 8, 4);   // bright tip
   });
 
+  // --- Boss 1: Mining Hauler (bulky, industrial grey + orange) ---
+  make('boss1', 96, 64, (g) => {
+    px(g, 0x4a5058, 10, 14, 76, 38);   // hull
+    px(g, 0x6b7480, 10, 14, 76, 8);    // top deck
+    px(g, 0x3a3f48, 18, 50, 60, 10);   // underbelly
+    px(g, 0x2b2f36, 30, 4, 12, 10);    // tower
+    px(g, 0x2b2f36, 54, 4, 12, 10);    // tower
+    px(g, 0xc4502a, 0, 26, 12, 14);    // front engine block
+    px(g, 0xffd24a, 2, 30, 6, 6);      // engine glow
+    px(g, 0x9a3030, 40, 24, 16, 12);   // core
+    px(g, 0x222831, 86, 18, 10, 28);   // rear
+  });
+
+  // --- Boss 2: Imperial Cruiser (angular grey wedge, nose left) ---
+  make('boss2', 112, 56, (g) => {
+    px(g, 0x6f7d86, 30, 4, 76, 48);    // body
+    px(g, 0x8fa0aa, 30, 4, 76, 8);     // top
+    px(g, 0x6f7d86, 18, 16, 14, 24);   // nose step
+    px(g, 0x6f7d86, 6, 22, 14, 12);    // nose tip
+    px(g, 0x9a3030, 2, 24, 6, 8);      // tip light
+    px(g, 0x3a4048, 40, 22, 52, 14);   // trench
+    px(g, 0x2b2f36, 92, 6, 20, 44);    // engines
+    px(g, 0x7ef0ff, 94, 14, 4, 8);     // thruster
+    px(g, 0x7ef0ff, 94, 34, 4, 8);     // thruster
+  });
+
+  // --- Boss 3: Imperial Walker (head + legs, grey) ---
+  make('boss3', 88, 80, (g) => {
+    px(g, 0x556070, 24, 6, 42, 30);    // head
+    px(g, 0x778496, 28, 10, 30, 10);   // visor housing
+    px(g, 0x9a3030, 32, 16, 22, 8);    // eye band
+    px(g, 0x222831, 2, 18, 14, 8);     // chin gun
+    px(g, 0x222831, 72, 18, 14, 8);    // chin gun
+    px(g, 0x445060, 36, 36, 16, 16);   // neck/body
+    px(g, 0x445060, 18, 50, 8, 28);    // leg
+    px(g, 0x445060, 62, 50, 8, 28);    // leg
+    px(g, 0x333b48, 12, 74, 18, 6);    // foot
+    px(g, 0x333b48, 58, 74, 18, 6);    // foot
+  });
+
   // --- Starfield tile (seamless dots) for a scrolling background ---
   make('startile', 256, 256, (g) => {
     for (let i = 0; i < 90; i++) {
