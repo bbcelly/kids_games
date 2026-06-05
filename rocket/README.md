@@ -14,6 +14,10 @@ Mandalorian/Grogu *themed* (original art — no copyrighted assets). Built with
 - **Goal:** clear each level's waves, then **defeat the boss** to advance.
 - **Levels:** Asteroid Field → Imperial Fleet → Planet Surface, each ending in a
   boss fight (with a boss health bar). Beating a boss unlocks the next level.
+- **Rising difficulty:** enemies get tougher, faster, more numerous and more
+  trigger-happy with every level — and after the finale the levels **loop** and
+  keep getting harder (the menu shows your current Loop). Tune the curve in
+  `computeDifficulty()` in `src/config.js`.
 - When your ship goes down, you keep the beskar you collected and retry the same
   level. Spend beskar in the **Hangar** between runs, then launch again — stronger.
 

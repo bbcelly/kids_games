@@ -7,7 +7,7 @@ const Save = {
 
   defaults() {
     return {
-      beskar: 0, level: 0, upgrades: {}, grogu: {},
+      beskar: 0, level: 0, lap: 0, upgrades: {}, grogu: {},
       weapons: { owned: [DEFAULT_WEAPON], active: DEFAULT_WEAPON },
     };
   },
@@ -30,6 +30,7 @@ const Save = {
         return {
           beskar: d.beskar || 0,
           level: typeof d.level === 'number' ? d.level : 0,
+          lap: typeof d.lap === 'number' ? d.lap : 0,
           upgrades: d.upgrades || {},
           grogu: d.grogu || {},
           weapons: this.normWeapons(d.weapons),
@@ -117,6 +118,15 @@ const Save = {
   setLevel(n) {
     const s = this.load();
     s.level = Math.max(0, n | 0);
+    this.save(s);
+    return s;
+  },
+
+  // Set both level index and lap (laps completed) — used when finishing a level.
+  setProgress(level, lap) {
+    const s = this.load();
+    s.level = Math.max(0, level | 0);
+    s.lap = Math.max(0, lap | 0);
     this.save(s);
     return s;
   },

@@ -74,3 +74,17 @@ const LEVELS = [
             speedY: 140, fireEvery: 850, bulletSpeed: 380, pattern: 'burst' },
   },
 ];
+
+// Difficulty scales with the "stage" number = lap * LEVELS.length + levelIndex.
+// So enemies get tougher with every level AND keep getting harder each loop
+// through the levels. Stage 0 (Level 1, first lap) is the baseline (all 1x).
+function computeDifficulty(stage) {
+  return {
+    hpBonus: Math.floor(stage / 2),                 // +1 enemy hull every 2 stages
+    speedMult: Math.min(2.2, 1 + stage * 0.08),     // enemies move faster
+    fireMult: Math.max(0.45, 1 - stage * 0.07),     // shooters fire faster (lower delay)
+    bulletMult: Math.min(1.8, 1 + stage * 0.06),    // bullets travel faster
+    countBonus: Math.min(6, Math.floor(stage / 2)), // more enemies per wave
+    bossMult: 1 + stage * 0.10,                     // tougher bosses
+  };
+}

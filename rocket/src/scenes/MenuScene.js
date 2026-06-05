@@ -28,7 +28,8 @@ class MenuScene extends Phaser.Scene {
 
     const saved = Save.load();
     const lvl = Phaser.Math.Clamp(saved.level || 0, 0, LEVELS.length - 1);
-    this.add.text(W / 2, H - 178, 'Level ' + (lvl + 1) + ' · ' + LEVELS[lvl].name, {
+    const lapTag = (saved.lap || 0) > 0 ? '   (Loop ' + ((saved.lap || 0) + 1) + ')' : '';
+    this.add.text(W / 2, H - 178, 'Level ' + (lvl + 1) + ' · ' + LEVELS[lvl].name + lapTag, {
       fontFamily: 'monospace', fontSize: '18px', color: '#7ef0ff',
     }).setOrigin(0.5);
     this.add.text(W / 2, H - 150, '◈ ' + saved.beskar + ' beskar in the vault', {

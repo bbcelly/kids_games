@@ -19,6 +19,13 @@ class GameScene extends Phaser.Scene {
     this.levelIndex = Phaser.Math.Clamp(saved.level || 0, 0, LEVELS.length - 1);
     this.level = LEVELS[this.levelIndex];
     this.waves = this.level.waves;
+    this.lap = saved.lap || 0;
+
+    // Difficulty rises with every level and keeps climbing each loop.
+    this.stage = this.lap * LEVELS.length + this.levelIndex;
+    this.diff = computeDifficulty(this.stage);
+    this.shooterFireEvery = CONFIG.enemies.shooter.fireEvery * this.diff.fireMult;
+    this.shooterBulletSpeed = CONFIG.enemies.shooter.bulletSpeed * this.diff.bulletMult;
 
     // --- background (tinted per level) ---
     this.stars = this.add.tileSprite(0, 0, W, H, 'startile').setOrigin(0).setTint(this.level.tint);
@@ -94,7 +101,8 @@ class GameScene extends Phaser.Scene {
       fontFamily: 'monospace', fontSize: '13px', color: '#667' }).setOrigin(1, 0).setDepth(20);
     this.updateHud();
 
-    this.flashCenter('LEVEL ' + (this.levelIndex + 1) + ' · ' + this.level.name);
+    const lapTag = this.lap > 0 ? '  ·  LOOP ' + (this.lap + 1) : '';
+    this.flashCenter('LEVEL ' + (this.levelIndex + 1) + ' · ' + this.level.name + lapTag);
   }
 
   update(time, delta) {
@@ -260,7 +268,8 @@ class GameScene extends Phaser.Scene {
   }
 
   spawnWave(wave) {
-    for (let i = 0; i < wave.count; i++) {
+    const count = wave.count + this.diff.countBonus;
+    for (let i = 0; i < count; i++) {
       this.pendingSpawns++;
       this.time.delayedCall(i * 450, () => {
         this.pendingSpawns--;
@@ -275,22 +284,21 @@ class GameScene extends Phaser.Scene {
     const y = Phaser.Math.Between(40, CONFIG.height - 40);
     const e = this.enemies.create(CONFIG.width + 30, y, def.texture);
     e.enemyType = type;
-    e.hp = def.hp;
+    e.hp = def.hp + this.diff.hpBonus;
     e.reward = def.reward;
     e.eid = this.enemyId++;
-    e.setVelocityX(-def.speed);
-    e.setVelocityY(Phaser.Math.Between(-25, 25));
+    e.setVelocityX(-def.speed * this.diff.speedMult);
+    e.setVelocityY(Phaser.Math.Between(-25, 25) * this.diff.speedMult);
   }
 
   handleEnemyFire(time) {
-    const def = CONFIG.enemies.shooter;
     this.enemies.getChildren().forEach((e) => {
       if (e.enemyType !== 'shooter') return;
-      if (e.nextShot === undefined) e.nextShot = time + def.fireEvery;
+      if (e.nextShot === undefined) e.nextShot = time + this.shooterFireEvery;
       if (time > e.nextShot && e.x < CONFIG.width) {
         const b = this.enemyBullets.create(e.x - 18, e.y, 'ebullet');
-        b.setVelocityX(-def.bulletSpeed);
-        e.nextShot = time + def.fireEvery;
+        b.setVelocityX(-this.shooterBulletSpeed);
+        e.nextShot = time + this.shooterFireEvery;
       }
     });
   }
@@ -312,12 +320,12 @@ class GameScene extends Phaser.Scene {
     const H = CONFIG.height;
     const def = this.level.boss;
     const boss = this.physics.add.sprite(W + 100, H / 2, def.texture);
-    boss.hp = def.hp;
-    boss.maxHp = def.hp;
+    boss.hp = Math.round(def.hp * this.diff.bossMult);
+    boss.maxHp = boss.hp;
     boss.bossName = def.name;
     boss.pattern = def.pattern;
-    boss.bulletSpeed = def.bulletSpeed;
-    boss.fireEvery = def.fireEvery;
+    boss.bulletSpeed = def.bulletSpeed * this.diff.bulletMult;
+    boss.fireEvery = def.fireEvery * this.diff.fireMult;
     boss.speedY = def.speedY;
     boss.reward = def.reward;
     boss.entering = true;
@@ -561,7 +569,9 @@ class GameScene extends Phaser.Scene {
 
     const next = this.levelIndex + 1;
     const hasNext = next < LEVELS.length;
-    Save.setLevel(hasNext ? next : 0); // loop back to level 1 after the finale
+    // advance the level; after the finale, loop to level 1 but bump the lap so
+    // difficulty keeps climbing.
+    Save.setProgress(hasNext ? next : 0, hasNext ? this.lap : this.lap + 1);
 
     const W = CONFIG.width;
     const H = CONFIG.height;
