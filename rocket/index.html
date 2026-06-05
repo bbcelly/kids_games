@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Beskar Run</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #05060f;
+      overflow: hidden;
+    }
+    #game {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    /* crisp pixels when the canvas is scaled up */
+    #game canvas {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-root"></div>
+
+  <!-- Phaser 3 from CDN (no build step needed) -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+
+  <!-- Game code. Order matters: data/helpers first, scenes next, main last. -->
+  <script src="src/config.js"></script>
+  <script src="src/upgrades.js"></script>
+  <script src="src/weapons.js"></script>
+  <script src="src/save.js"></script>
+  <script src="src/textures.js"></script>
+  <script src="src/scenes/BootScene.js"></script>
+  <script src="src/scenes/MenuScene.js"></script>
+  <script src="src/scenes/GameScene.js"></script>
+  <script src="src/scenes/ShopScene.js"></script>
+  <script src="src/main.js"></script>
+</body>
+</html>
