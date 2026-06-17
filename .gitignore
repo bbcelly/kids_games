@@ -1,0 +1,88 @@
+# ============================================================================
+#  OS / Filesystem junk
+# ============================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+.AppleDouble
+.LSOverride
+.fseventsd
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+Icon
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# ============================================================================
+#  Editors / IDEs
+# ============================================================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+*~
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+*.code-workspace
+.history/
+
+# ============================================================================
+#  Node / JavaScript
+# ============================================================================
+node_modules/
+jspm_packages/
+.npm/
+.pnp.*
+.yarn/
+.eslintcache
+.cache/
+.parcel-cache/
+*.tsbuildinfo
+package-lock.json.bak
+
+# ============================================================================
+#  Logs & debug
+# ============================================================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ============================================================================
+#  Build output / dist
+# ============================================================================
+dist/
+build/
+out/
+.tmp/
+tmp/
+*.tgz
+
+# ============================================================================
+#  Environment / secrets
+# ============================================================================
+.env
+.env.*
+!.env.example
+*.local
+
+# ============================================================================
+#  Test / coverage
+# ============================================================================
+coverage/
+.nyc_output/
