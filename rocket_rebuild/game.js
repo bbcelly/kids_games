@@ -1209,28 +1209,31 @@ function drawHangar() {
   drawBackground();
   ctx.fillStyle = 'rgba(4,8,16,0.78)'; ctx.fillRect(0, 0, VW, VH);
   hangar.clickRects = [];
-  // header
-  textC('⚙  THE HANGAR  ⚙', VW / 2, 44, 30, '#ffcc44', '900');
-  rect(VW / 2 - 120, 54, 240, 3, '#1d3a5c');
+  // header (kept compact so it clears the column titles below)
+  textC('⚙  THE HANGAR  ⚙', VW / 2, 34, 28, '#ffcc44', '900');
+  rect(VW / 2 - 120, 44, 240, 3, '#1d3a5c');
   // vault
-  rect(VW / 2 - 86, 64, 14, 14, '#ffd23f'); rect(VW / 2 - 86, 64, 14, 3, '#fff7d0');
-  text('VAULT  ' + SAVE.vault + ' beskar', VW / 2 - 64, 77, 20, '#ffe8a0');
+  rect(VW / 2 - 86, 54, 14, 14, '#ffd23f'); rect(VW / 2 - 86, 54, 14, 3, '#fff7d0');
+  text('VAULT  ' + SAVE.vault + ' beskar', VW / 2 - 64, 67, 20, '#ffe8a0');
 
   const cats = [
     { title: 'UPGRADES', items: categoryItems(0) },
     { title: "GROGU'S GIFTS", items: categoryItems(1) },
     { title: 'WEAPONS', items: categoryItems(2) },
   ];
-  const colW = 300, gap = 14, startX = (VW - (colW * 3 + gap * 2)) / 2, topY = 100;
+  // Columns are sized so every card fits above the LAUNCH button — the WEAPONS
+  // column has the most rows (9), so its cards are compact; nothing scrolls.
+  const colW = 300, gap = 14, startX = (VW - (colW * 3 + gap * 2)) / 2, topY = 86;
   for (let c = 0; c < 3; c++) {
     const cx = startX + c * (colW + gap);
     const sel = hangar.cat === c;
-    textC(cats[c].title, cx + colW / 2, topY + 4, 18, sel ? '#7fe7ff' : '#9fd3c7', '900');
+    textC(cats[c].title, cx + colW / 2, topY + 2, 16, sel ? '#7fe7ff' : '#9fd3c7', '900');
     const items = cats[c].items;
-    const cardH = c === 2 ? 42 : 84;
+    const cardH = c === 2 ? 38 : 70;   // weapons (9 rows) compact, others taller
+    const cgap = c === 2 ? 4 : 6;
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
-      const cy = topY + 18 + i * (cardH + 8);
+      const cy = topY + 16 + i * (cardH + cgap);
       const isSel = sel && hangar.idx === i;
       drawCard(it, cx, cy, colW, cardH, isSel);
       hangar.clickRects.push({ x: cx, y: cy, w: colW, h: cardH, cat: c, idx: i });
@@ -1243,8 +1246,9 @@ function drawHangar() {
   roundRect(bx, by, bw, 40, 10, hover ? '#1ea05a' : '#147a43', '#9cff9c', 3);
   textC('▶  LAUNCH  —  ' + LEVELS[clamp(SAVE.progress.level|0,0,2)].name + (SAVE.progress.loop?` (Loop ${SAVE.progress.loop+1})`:''), VW / 2, by + 27, 18, '#eafff0', '900');
   hangar.clickRects.push({ x: bx, y: by, w: bw, h: 40, launch: true });
-  text(IS_TOUCH ? 'Tap a card to buy / equip  •  ‹ Back  •  tap LAUNCH to fly'
-                : 'Arrows move • Enter buy/equip • Space launch • Esc title', IS_TOUCH ? 90 : 14, VH - 12, 13, '#5e7ea0');
+  // keyboard hint only — on touch the LAUNCH button and ‹ Back button speak for
+  // themselves, and the bottom strip is occupied by the LAUNCH button.
+  if (!IS_TOUCH) text('Arrows move • Enter buy/equip • Space launch • Esc title', 14, VH - 12, 13, '#5e7ea0');
 }
 function drawCard(it, x, y, w, h, sel) {
   let title, sub, costStr, lvl = 0, max = 0, owned = false, equipped = false, pipsCol = '#ffcc44', locked = false, premium = false;
