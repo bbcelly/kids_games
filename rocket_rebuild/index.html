@@ -95,7 +95,7 @@
     // "rotate to landscape" cover while held in portrait.
     if (isTouch) {
       var hint = document.getElementById('hint');
-      if (hint) hint.textContent = 'Drag to fly • auto-fire • tap the on-screen buttons';
+      if (hint) hint.textContent = 'Touch & hold to steer (joystick) • auto-fire • tap the buttons';
       var applyOrient = function () {
         var portrait = window.innerHeight > window.innerWidth;
         document.body.classList.toggle('is-portrait', portrait);

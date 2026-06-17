@@ -84,7 +84,11 @@ const Audio2 = (() => {
 const down = new Set();      // keys currently held
 const pressed = new Set();   // keys pressed this frame (consumed by logic)
 const mouse = { x: 0, y: 0, clicked: false, downNow: false };
-const touch = { active: false, x: 0, y: 0 };  // the current "fly" drag, if any
+// Virtual joystick: touching down sets the base at (ox, oy); the finger's offset
+// from there steers the ship. (x, y) is the current finger position.
+const touch = { active: false, x: 0, y: 0, ox: 0, oy: 0 };
+const JOY_MAX = 72;   // finger offset (px) for full speed
+const JOY_DEAD = 7;   // deadzone so a still finger doesn't drift
 
 const IS_TOUCH = (typeof window !== 'undefined' && 'ontouchstart' in window) ||
                  (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0);
@@ -142,7 +146,7 @@ canvas.addEventListener('touchstart', e => {
     } else {
       activeTouches.set(t.identifier, { x: p.x, y: p.y, btn: null });
       moveId = t.identifier;
-      touch.active = true; touch.x = p.x; touch.y = p.y;
+      touch.active = true; touch.x = p.x; touch.y = p.y; touch.ox = p.x; touch.oy = p.y;
       mouse.x = p.x; mouse.y = p.y; mouse.downNow = true;
     }
   }
@@ -166,9 +170,10 @@ function endTouch(e) {
       if (mouse.downNow) mouse.clicked = true;  // a fly-touch release counts as a tap/confirm
       mouse.downNow = false;
       moveId = null; touch.active = false;
-      // hand the fly-drag over to another non-button finger that's still down
+      // hand the fly-drag over to another non-button finger that's still down,
+      // re-centering the joystick base under it
       for (const [id, o] of activeTouches) {
-        if (!o.btn) { moveId = id; touch.active = true; touch.x = o.x; touch.y = o.y; break; }
+        if (!o.btn) { moveId = id; touch.active = true; touch.x = o.x; touch.y = o.y; touch.ox = o.x; touch.oy = o.y; break; }
       }
     }
   }
@@ -938,10 +943,18 @@ function updatePlay(dt) {
     if (down.has('ArrowRight') || down.has('d')) mx += 1;
     if (down.has('ArrowUp') || down.has('w')) my -= 1;
     if (down.has('ArrowDown') || down.has('s')) my += 1;
-    if (touch.active) { // drag toward touch (ship rides above the finger)
-      const dx = touch.x - p.x, dy = (touch.y - 38) - p.y;
-      if (Math.abs(dx) > 6) mx = clamp(dx / 60, -1, 1);
-      if (Math.abs(dy) > 6) my = clamp(dy / 60, -1, 1);
+    if (touch.active) { // virtual joystick: steer by the finger's offset from its base
+      let dx = touch.x - touch.ox, dy = touch.y - touch.oy;
+      const mag = Math.hypot(dx, dy);
+      if (mag > JOY_MAX) { // base trails the finger so you can keep pushing full-tilt
+        touch.ox = touch.x - dx / mag * JOY_MAX;
+        touch.oy = touch.y - dy / mag * JOY_MAX;
+        dx = touch.x - touch.ox; dy = touch.y - touch.oy;
+      }
+      if (mag > JOY_DEAD) {
+        const f = Math.min(1, (mag - JOY_DEAD) / (JOY_MAX - JOY_DEAD));
+        mx = dx / mag * f; my = dy / mag * f;
+      }
     }
     const sp = playerSpeed();
     p.x = clamp(p.x + mx * sp * dt, 30, VW - 30);
@@ -1031,7 +1044,8 @@ function drawPlay() {
   if (p) {
     drawGrogu(G.companion.x, G.companion.y, G.time);
     if (p.alive && !(p.invuln > 0 && Math.floor(G.time * 20) % 2)) {
-      const moving = down.has('ArrowRight') || down.has('d') || down.has('ArrowUp') || down.has('w') || down.has('ArrowDown') || down.has('s') || down.has('ArrowLeft') || down.has('a');
+      const joy = touch.active && Math.hypot(touch.x - touch.ox, touch.y - touch.oy) > JOY_DEAD;
+      const moving = joy || down.has('ArrowRight') || down.has('d') || down.has('ArrowUp') || down.has('w') || down.has('ArrowDown') || down.has('s') || down.has('ArrowLeft') || down.has('a');
       drawShip(p.x, p.y, G.time, moving, false);
     }
   }
@@ -1348,11 +1362,29 @@ function drawTouchButton(b) {
     case 'back': textC('‹', x - 1, y + 9, 30, '#cfe7ff', '900'); break;
   }
 }
+function drawJoystick() {
+  if (!IS_TOUCH || !touch.active) return;
+  const ox = touch.ox, oy = touch.oy;
+  let dx = touch.x - ox, dy = touch.y - oy;
+  const mag = Math.hypot(dx, dy);
+  if (mag > JOY_MAX) { dx = dx / mag * JOY_MAX; dy = dy / mag * JOY_MAX; }
+  // base ring
+  ctx.beginPath(); ctx.arc(ox, oy, JOY_MAX, 0, TAU);
+  ctx.fillStyle = 'rgba(8,14,26,0.32)'; ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(127,231,255,0.45)'; ctx.stroke();
+  glowDot(ox, oy, 7, 'rgba(127,231,255,0.45)');
+  // knob
+  const kx = ox + dx, ky = oy + dy;
+  ctx.beginPath(); ctx.arc(kx, ky, 26, 0, TAU);
+  ctx.fillStyle = 'rgba(127,231,255,0.85)'; ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = '#eafff0'; ctx.stroke();
+}
 function buildTouchButtons() {
   touchButtons = [];
   if (!IS_TOUCH) return;
   const s = G.state;
   if (s === 'play') {
+    drawJoystick();
     touchButtons.push(tb(VW - 42, 112, 26, 'p', 'pause'));
     touchButtons.push(tb(VW - 42, 172, 24, 'm', 'mute'));
     if (ownedWeapons().length > 1) touchButtons.push(tb(VW - 48, VH - 152, 30, 'q', 'weapon', { ring: '#7fe7ff' }));

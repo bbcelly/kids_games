@@ -26,7 +26,10 @@ folder). Progress is saved automatically in the browser via `localStorage`.
 
 ### Controls — mobile / touch
 On a phone or tablet the controls adapt automatically:
-- **Drag anywhere** to fly — the ship rides just above your finger, and fires on its own.
+- **Touch & hold anywhere** to summon a floating **joystick**: where you press becomes
+  its centre, and pushing your thumb out from there steers the ship in that direction
+  (the further you push, the faster it flies). The ship holds position until you push,
+  and fires on its own. Push past the ring and the joystick base trails your thumb.
 - **On-screen buttons** appear at the edges: ⏸ pause + 🔊 mute (top-right), and — once
   you own the gear — **WPN** to swap weapon and **F** for the Force Wipe (bottom-right).
 - **Tap** menus, cards, and the LAUNCH button; **‹** in the Hangar goes back to the title.
