@@ -2,8 +2,20 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <title>BESKAR RUN — This is the Way</title>
+
+<!-- PWA / installable mobile app -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#05060a" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Beskar Run" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+
 <style>
   :root { --gold: #ffcc44; --steel: #9fd3c7; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -13,10 +25,14 @@
     overflow: hidden;
     font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
     -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
     touch-action: none;
+    overscroll-behavior: none;
   }
   #wrap {
     position: fixed; inset: 0;
+    /* keep the canvas clear of notches / rounded corners */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     display: flex; align-items: center; justify-content: center;
     background:
       radial-gradient(ellipse at 50% 30%, #11203a 0%, #07080f 60%, #030308 100%);
@@ -28,19 +44,87 @@
     box-shadow: 0 0 0 3px #1a2b44, 0 0 40px #0a2540, 0 0 90px #04101f;
     border-radius: 6px;
     max-width: 100%; max-height: 100%;
+    touch-action: none;
   }
   #hint {
-    position: fixed; bottom: 6px; left: 0; right: 0;
+    position: fixed; bottom: calc(6px + env(safe-area-inset-bottom)); left: 0; right: 0;
     text-align: center; color: #3a4d6b; font-size: 12px;
     letter-spacing: 1px; pointer-events: none;
   }
+  /* "rotate your device" cover, shown only on a touch device held in portrait */
+  #rotate {
+    position: fixed; inset: 0; z-index: 50; display: none;
+    align-items: center; justify-content: center; text-align: center;
+    background: radial-gradient(ellipse at 50% 40%, #11203a 0%, #05060a 70%);
+    color: #ffe8a0; padding: 24px;
+  }
+  #rotate .inner { max-width: 320px; }
+  #rotate .phone {
+    width: 64px; height: 110px; margin: 0 auto 22px;
+    border: 4px solid #ffcc44; border-radius: 12px;
+    animation: tilt 1.6s ease-in-out infinite;
+  }
+  @keyframes tilt { 0%,100% { transform: rotate(0); } 50% { transform: rotate(-90deg); } }
+  #rotate h1 { font-size: 22px; letter-spacing: 1px; margin-bottom: 8px; }
+  #rotate p { font-size: 14px; color: #9fd3c7; line-height: 1.5; }
+  body.is-portrait #rotate { display: flex; }
+  body.is-portrait #wrap, body.is-portrait #hint { display: none; }
 </style>
 </head>
 <body>
   <div id="wrap">
     <canvas id="game" width="960" height="540"></canvas>
   </div>
+
+  <div id="rotate">
+    <div class="inner">
+      <div class="phone"></div>
+      <h1>Rotate your device</h1>
+      <p>Beskar Run plays in landscape. Turn your phone sideways to launch.</p>
+    </div>
+  </div>
+
   <div id="hint">Arrows / WASD move &nbsp;•&nbsp; auto-fire &nbsp;•&nbsp; Q weapon &nbsp;•&nbsp; F Force &nbsp;•&nbsp; P pause &nbsp;•&nbsp; M mute</div>
+
   <script src="game.js"></script>
+  <script>
+  (function () {
+    var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
+    // Touch devices: swap the keyboard hint for a touch hint, and show a
+    // "rotate to landscape" cover while held in portrait.
+    if (isTouch) {
+      var hint = document.getElementById('hint');
+      if (hint) hint.textContent = 'Drag to fly • auto-fire • tap the on-screen buttons';
+      var applyOrient = function () {
+        var portrait = window.innerHeight > window.innerWidth;
+        document.body.classList.toggle('is-portrait', portrait);
+      };
+      applyOrient();
+      window.addEventListener('resize', applyOrient);
+      window.addEventListener('orientationchange', applyOrient);
+    }
+
+    // First user gesture: go immersive (best-effort, ignored where unsupported).
+    function goImmersive() {
+      if (!isTouch) return;
+      var el = document.documentElement;
+      try { (el.requestFullscreen || el.webkitRequestFullscreen || function(){}).call(el); } catch (e) {}
+      try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(function(){}); } catch (e) {}
+      window.removeEventListener('touchend', goImmersive);
+      window.removeEventListener('mousedown', goImmersive);
+    }
+    window.addEventListener('touchend', goImmersive, { passive: true });
+    window.addEventListener('mousedown', goImmersive);
+
+    // Register the service worker so the game installs & runs offline.
+    // (No-op on file://; needs http(s) or localhost.)
+    if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function () {});
+      });
+    }
+  })();
+  </script>
 </body>
 </html>

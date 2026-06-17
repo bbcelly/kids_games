@@ -1,0 +1,19 @@
+{
+  "name": "Beskar Run — This is the Way",
+  "short_name": "Beskar Run",
+  "description": "A kids' side-scrolling pixel-art rocket shooter. Pilot a beskar gunship, blast waves of enemies, beat the boss, and upgrade in the Hangar.",
+  "id": "/beskar-run/",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#05060a",
+  "theme_color": "#05060a",
+  "categories": ["games", "kids"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

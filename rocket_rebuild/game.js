@@ -79,12 +79,27 @@ const Audio2 = (() => {
 })();
 
 // ============================================================================
-//  INPUT
+//  INPUT  (keyboard + mouse + multi-touch with on-screen buttons)
 // ============================================================================
 const down = new Set();      // keys currently held
 const pressed = new Set();   // keys pressed this frame (consumed by logic)
 const mouse = { x: 0, y: 0, clicked: false, downNow: false };
-const touch = { active: false, x: 0, y: 0 };
+const touch = { active: false, x: 0, y: 0 };  // the current "fly" drag, if any
+
+const IS_TOUCH = (typeof window !== 'undefined' && 'ontouchstart' in window) ||
+                 (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0);
+
+// On-screen buttons for the active state. Rebuilt every frame by the draw code
+// (see buildTouchButtons). Each: { x, y, r, key } in canvas coords; tapping one
+// injects `key` into `pressed`, exactly like the matching keystroke.
+let touchButtons = [];
+function hitButton(cx, cy) {
+  for (const b of touchButtons) {
+    const dx = cx - b.x, dy = cy - b.y;
+    if (dx * dx + dy * dy <= b.r * b.r) return b;
+  }
+  return null;
+}
 
 const MOVE_KEYS = ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','a','d','w','s'];
 
@@ -99,26 +114,67 @@ window.addEventListener('keyup', e => {
   let k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   down.delete(k);
 });
-function mapMouse(e) {
+function toCanvas(clientX, clientY) {
   const r = canvas.getBoundingClientRect();
-  mouse.x = (e.clientX - r.left) * (VW / r.width);
-  mouse.y = (e.clientY - r.top) * (VH / r.height);
+  return { x: (clientX - r.left) * (VW / r.width), y: (clientY - r.top) * (VH / r.height) };
 }
+function mapMouse(e) { const p = toCanvas(e.clientX, e.clientY); mouse.x = p.x; mouse.y = p.y; }
 canvas.addEventListener('mousemove', mapMouse);
 canvas.addEventListener('mousedown', e => { mapMouse(e); mouse.downNow = true; Audio2.resume(); });
 canvas.addEventListener('mouseup', e => { mapMouse(e); if (mouse.downNow) mouse.clicked = true; mouse.downNow = false; });
+
+// ---- multi-touch ---------------------------------------------------------
+// Each touch is either a "fly" drag (moves the ship / acts as a menu click) or
+// a "button" press. Tracking them by identifier lets a player hold a button
+// with one thumb while flying with the other.
+const activeTouches = new Map(); // id -> { x, y, btn }
+let moveId = null;               // identifier of the active fly-drag, or null
+
 canvas.addEventListener('touchstart', e => {
-  e.preventDefault(); const t = e.touches[0]; const r = canvas.getBoundingClientRect();
-  touch.active = true; touch.x = (t.clientX - r.left) * (VW / r.width); touch.y = (t.clientY - r.top) * (VH / r.height);
-  mouse.x = touch.x; mouse.y = touch.y; mouse.downNow = true; Audio2.resume();
+  e.preventDefault(); Audio2.resume();
+  for (const t of e.changedTouches) {
+    const p = toCanvas(t.clientX, t.clientY);
+    const b = hitButton(p.x, p.y);
+    if (b) {
+      activeTouches.set(t.identifier, { x: p.x, y: p.y, btn: b.key });
+      pressed.add(b.key);
+      Audio2.select();
+    } else {
+      activeTouches.set(t.identifier, { x: p.x, y: p.y, btn: null });
+      moveId = t.identifier;
+      touch.active = true; touch.x = p.x; touch.y = p.y;
+      mouse.x = p.x; mouse.y = p.y; mouse.downNow = true;
+    }
+  }
 }, { passive: false });
+
 canvas.addEventListener('touchmove', e => {
-  e.preventDefault(); const t = e.touches[0]; const r = canvas.getBoundingClientRect();
-  touch.x = (t.clientX - r.left) * (VW / r.width); touch.y = (t.clientY - r.top) * (VH / r.height);
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    const a = activeTouches.get(t.identifier); if (!a) continue;
+    const p = toCanvas(t.clientX, t.clientY); a.x = p.x; a.y = p.y;
+    if (t.identifier === moveId) { touch.x = p.x; touch.y = p.y; mouse.x = p.x; mouse.y = p.y; }
+  }
 }, { passive: false });
-canvas.addEventListener('touchend', e => {
-  e.preventDefault(); touch.active = false; if (mouse.downNow) mouse.clicked = true; mouse.downNow = false;
-}, { passive: false });
+
+function endTouch(e) {
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    const a = activeTouches.get(t.identifier); if (!a) continue;
+    activeTouches.delete(t.identifier);
+    if (t.identifier === moveId) {
+      if (mouse.downNow) mouse.clicked = true;  // a fly-touch release counts as a tap/confirm
+      mouse.downNow = false;
+      moveId = null; touch.active = false;
+      // hand the fly-drag over to another non-button finger that's still down
+      for (const [id, o] of activeTouches) {
+        if (!o.btn) { moveId = id; touch.active = true; touch.x = o.x; touch.y = o.y; break; }
+      }
+    }
+  }
+}
+canvas.addEventListener('touchend', endTouch, { passive: false });
+canvas.addEventListener('touchcancel', endTouch, { passive: false });
 
 function consumePress(k) { if (pressed.has(k)) { pressed.delete(k); return true; } return false; }
 function anyConfirm() {
@@ -882,8 +938,8 @@ function updatePlay(dt) {
     if (down.has('ArrowRight') || down.has('d')) mx += 1;
     if (down.has('ArrowUp') || down.has('w')) my -= 1;
     if (down.has('ArrowDown') || down.has('s')) my += 1;
-    if (touch.active) { // drag toward touch
-      const dx = touch.x - p.x, dy = (touch.y - 30) - p.y;
+    if (touch.active) { // drag toward touch (ship rides above the finger)
+      const dx = touch.x - p.x, dy = (touch.y - 38) - p.y;
       if (Math.abs(dx) > 6) mx = clamp(dx / 60, -1, 1);
       if (Math.abs(dy) > 6) my = clamp(dy / 60, -1, 1);
     }
@@ -1036,12 +1092,12 @@ function drawHUD() {
   roundRect(VW - 270, 10, 260, 70, 8, 'rgba(8,14,26,0.72)', '#1d3a5c', 2);
   text('WEAPON', VW - 256, 30, 12, '#9fd3c7');
   text(WEAPONS[wId].name, VW - 256, 50, 18, '#aaffb4');
-  text('[Q] swap', VW - 256, 68, 12, '#5e7ea0');
+  if (ownedWeapons().length > 1) text(IS_TOUCH ? 'tap WPN to swap' : '[Q] swap', VW - 256, 68, 12, '#5e7ea0');
   // force gauge
   if (wipeOwned()) {
     const ready = G.forceWipeCd <= 0;
     const fx = VW - 100, fy = 50;
-    text('FORCE [F]', fx - 4, 30, 12, '#9fd3c7');
+    text(IS_TOUCH ? 'FORCE' : 'FORCE [F]', fx - 4, 30, 12, '#9fd3c7');
     roundRect(fx, 36, 84, 14, 5, 'rgba(0,0,0,0.5)', ready ? '#9cff9c' : '#46506a', 2);
     if (!ready) rect(fx + 2, 38, 80 * (1 - G.forceWipeCd / wipeCooldown()), 10, '#7fe7ff');
     else { rect(fx + 2, 38, 80, 10, '#9cff9c'); }
@@ -1087,7 +1143,7 @@ function drawTitle() {
   textC(prog + '   •   Best Score ' + (SAVE.progress.bestScore | 0), VW / 2, VH - 92, 16, '#9fd3c7');
   // prompt
   if (Math.floor(G.time * 1.6) % 2)
-    textC('Press ENTER  —  or click to enter the Hangar', VW / 2, VH - 50, 22, '#ffffff');
+    textC(IS_TOUCH ? 'Tap to enter the Hangar' : 'Press ENTER  —  or click to enter the Hangar', VW / 2, VH - 50, 22, '#ffffff');
 }
 
 // ============================================================================
@@ -1187,7 +1243,8 @@ function drawHangar() {
   roundRect(bx, by, bw, 40, 10, hover ? '#1ea05a' : '#147a43', '#9cff9c', 3);
   textC('▶  LAUNCH  —  ' + LEVELS[clamp(SAVE.progress.level|0,0,2)].name + (SAVE.progress.loop?` (Loop ${SAVE.progress.loop+1})`:''), VW / 2, by + 27, 18, '#eafff0', '900');
   hangar.clickRects.push({ x: bx, y: by, w: bw, h: 40, launch: true });
-  text('Arrows move • Enter buy/equip • Space launch • Esc title', 14, VH - 12, 13, '#5e7ea0');
+  text(IS_TOUCH ? 'Tap a card to buy / equip  •  ‹ Back  •  tap LAUNCH to fly'
+                : 'Arrows move • Enter buy/equip • Space launch • Esc title', IS_TOUCH ? 90 : 14, VH - 12, 13, '#5e7ea0');
 }
 function drawCard(it, x, y, w, h, sel) {
   let title, sub, costStr, lvl = 0, max = 0, owned = false, equipped = false, pipsCol = '#ffcc44', locked = false, premium = false;
@@ -1236,7 +1293,9 @@ function drawPaused() {
   drawPlay();
   ctx.fillStyle = 'rgba(2,4,10,0.7)'; ctx.fillRect(0, 0, VW, VH);
   textC('PAUSED', VW / 2, VH / 2 - 20, 60, '#ffcc44', '900');
-  textC('[P] resume   •   [Esc] quit run to hangar   •   [M] ' + (SAVE.muted ? 'unmute' : 'mute'), VW / 2, VH / 2 + 30, 20, '#cfe2ff');
+  textC(IS_TOUCH ? 'Tap ▶ to resume   •   QUIT to the hangar'
+                 : '[P] resume   •   [Esc] quit run to hangar   •   [M] ' + (SAVE.muted ? 'unmute' : 'mute'),
+        VW / 2, VH / 2 + 30, 20, '#cfe2ff');
 }
 function updateEndScreen(dt) {
   G.time += dt; updateParticles(dt);
@@ -1250,7 +1309,61 @@ function drawEndScreen(victory) {
   textC(G.bannerSub, VW / 2, VH / 2 + 50, 26, '#ffe8a0');
   textC('VAULT  ' + SAVE.vault + ' beskar    •    SCORE  ' + G.score, VW / 2, VH / 2 + 86, 18, '#9fd3c7');
   if (victory) textC('Next up: ' + LEVELS[clamp(SAVE.progress.level|0,0,2)].name + (SAVE.progress.loop ? ` (Loop ${SAVE.progress.loop + 1})` : ''), VW / 2, VH / 2 + 116, 16, '#7fe7ff');
-  if (Math.floor(G.time * 1.6) % 2) textC('Press ENTER / click — to the Hangar', VW / 2, VH - 50, 20, '#ffffff');
+  if (Math.floor(G.time * 1.6) % 2) textC(IS_TOUCH ? 'Tap — to the Hangar' : 'Press ENTER / click — to the Hangar', VW / 2, VH - 50, 20, '#ffffff');
+}
+
+// ============================================================================
+//  ON-SCREEN TOUCH BUTTONS
+//  Only shown on touch devices. Tapping a button injects the matching key into
+//  `pressed`, so the existing keyboard logic handles it with no special cases.
+// ============================================================================
+function tb(x, y, r, key, icon, opt) { return Object.assign({ x, y, r, key, icon }, opt || {}); }
+function drawSpeaker(x, y, muted) {
+  rect(x - 10, y - 5, 6, 10, '#cfe2ff');
+  ctx.fillStyle = '#cfe2ff';
+  ctx.beginPath(); ctx.moveTo(x - 4, y - 5); ctx.lineTo(x + 3, y - 11); ctx.lineTo(x + 3, y + 11); ctx.lineTo(x - 4, y + 5); ctx.closePath(); ctx.fill();
+  if (muted) { ctx.strokeStyle = '#ff6b6b'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x - 12, y - 11); ctx.lineTo(x + 12, y + 11); ctx.stroke(); }
+  else { ctx.strokeStyle = '#9fd3c7'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x + 6, y, 6, -0.6, 0.6); ctx.stroke(); ctx.beginPath(); ctx.arc(x + 6, y, 10, -0.6, 0.6); ctx.stroke(); }
+}
+function drawTouchButton(b) {
+  const x = b.x, y = b.y, r = b.r;
+  glowDot(x, y, r + 6, 'rgba(0,0,0,0.30)');
+  ctx.beginPath(); ctx.arc(x, y, r, 0, TAU);
+  ctx.fillStyle = 'rgba(8,14,26,0.72)'; ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = b.ring || '#1d3a5c'; ctx.stroke();
+  switch (b.icon) {
+    case 'pause': rect(x - 8, y - 10, 5, 20, '#eafff0'); rect(x + 3, y - 10, 5, 20, '#eafff0'); break;
+    case 'play': ctx.fillStyle = '#eafff0'; ctx.beginPath(); ctx.moveTo(x - 9, y - 13); ctx.lineTo(x - 9, y + 13); ctx.lineTo(x + 14, y); ctx.closePath(); ctx.fill(); break;
+    case 'weapon': textC('WPN', x, y + 5, 15, '#bff0ff', '900'); break;
+    case 'force':
+      if (b.ready) textC('F', x, y + 9, 28, '#9cff9c', '900');
+      else { textC('F', x, y + 2, 18, '#7fe7ff', '900'); textC(Math.ceil(G.forceWipeCd) + 's', x, y + 19, 12, '#7fe7ff'); }
+      break;
+    case 'mute': drawSpeaker(x, y, SAVE.muted); break;
+    case 'quit': textC('QUIT', x, y + 5, 14, '#ffb0b0', '900'); break;
+    case 'back': textC('‹', x - 1, y + 9, 30, '#cfe7ff', '900'); break;
+  }
+}
+function buildTouchButtons() {
+  touchButtons = [];
+  if (!IS_TOUCH) return;
+  const s = G.state;
+  if (s === 'play') {
+    touchButtons.push(tb(VW - 42, 112, 26, 'p', 'pause'));
+    touchButtons.push(tb(VW - 42, 172, 24, 'm', 'mute'));
+    if (ownedWeapons().length > 1) touchButtons.push(tb(VW - 48, VH - 152, 30, 'q', 'weapon', { ring: '#7fe7ff' }));
+    if (wipeOwned()) {
+      const ready = G.forceWipeCd <= 0;
+      touchButtons.push(tb(VW - 58, VH - 66, 42, 'f', 'force', { ring: ready ? '#9cff9c' : '#46506a', ready }));
+    }
+  } else if (s === 'paused') {
+    touchButtons.push(tb(VW / 2 - 96, VH / 2 + 104, 40, 'p', 'play', { ring: '#9cff9c' }));
+    touchButtons.push(tb(VW / 2 + 96, VH / 2 + 104, 40, 'Escape', 'quit', { ring: '#ff8a8a' }));
+    touchButtons.push(tb(VW - 42, 112, 24, 'm', 'mute'));
+  } else if (s === 'hangar') {
+    touchButtons.push(tb(52, 46, 28, 'Escape', 'back', { ring: '#7fa6d0' }));
+  }
+  for (const b of touchButtons) drawTouchButton(b);
 }
 
 // ============================================================================
@@ -1275,6 +1388,9 @@ function frame(ts) {
   const vg = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.35, VW / 2, VH / 2, VH * 0.75);
   vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.45)');
   ctx.fillStyle = vg; ctx.fillRect(0, 0, VW, VH);
+
+  // on-screen touch controls (touch devices only), drawn above everything
+  buildTouchButtons();
 
   // consume per-frame input flags
   pressed.clear();
