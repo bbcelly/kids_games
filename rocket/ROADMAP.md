@@ -11,6 +11,11 @@ for how to add things and [ARCHITECTURE.md](ARCHITECTURE.md) for how it works.
   each = data-driven waves → a unique boss (Mining Hauler / Imperial Cruiser /
   Imperial Walker) with a health bar, vertical patrol, and a fire pattern
   (spread / aimed / burst). Beat the boss to advance; die to retry the level.
+- **Themed parallax backdrops per level:** each level is a data-driven stack of
+  scrolling tileSprite layers (`LEVELS[i].bg.layers`) plus optional drifting
+  decor props — Asteroid Field (dust void + tumbling asteroids), Imperial Fleet
+  (nebula + capital-ship hull silhouettes + debris), Planet Surface (warm sky +
+  mountain ridge + scrolling ground). Built in `GameScene.buildBackground()`.
 - **Rising, looping difficulty:** `computeDifficulty(stage)` scales enemy hull,
   speed, fire rate, bullet speed, and wave size every level, and keeps climbing
   each loop (persistent `lap`). Bosses scale too.
@@ -29,16 +34,14 @@ for how to add things and [ARCHITECTURE.md](ARCHITECTURE.md) for how it works.
 
 ## 🔜 Planned (next, roughly in order)
 
-1. **Themed art & terrain per level** — distinct backdrops/obstacles (asteroids,
-   fleet hulls, ground turrets) instead of just a tint. Biggest visual upgrade.
-2. **Boss attack-pattern variety & phases** — multi-phase bosses that change
+1. **Boss attack-pattern variety & phases** — multi-phase bosses that change
    patterns as HP drops; telegraphed special attacks.
-3. **Mid-flight weapon power-up pickups** — temporary weapon drops during play
+2. **Mid-flight weapon power-up pickups** — temporary weapon drops during play
    (the "Both" acquisition option we deferred).
-4. **Sound** — simple SFX (shoot, hit, explosion, pickup, boss) and light music;
+3. **Sound** — simple SFX (shoot, hit, explosion, pickup, boss) and light music;
    would need an audio approach that still works without external files or via a
    tiny CDN/base64.
-5. **Reward scaling** — harder enemies/bosses drop more beskar so deeper loops
+4. **Reward scaling** — harder enemies/bosses drop more beskar so deeper loops
    stay worthwhile.
 
 ## 💡 Idea backlog (unscheduled)

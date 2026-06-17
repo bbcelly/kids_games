@@ -27,8 +27,8 @@ class GameScene extends Phaser.Scene {
     this.shooterFireEvery = CONFIG.enemies.shooter.fireEvery * this.diff.fireMult;
     this.shooterBulletSpeed = CONFIG.enemies.shooter.bulletSpeed * this.diff.bulletMult;
 
-    // --- background (tinted per level) ---
-    this.stars = this.add.tileSprite(0, 0, W, H, 'startile').setOrigin(0).setTint(this.level.tint);
+    // --- background (themed parallax layers + drifting props per level) ---
+    this.buildBackground(W, H);
 
     // --- run state (effective stats + loadout from the save) ---
     this.stats = computeStats(saved.upgrades);
@@ -105,12 +105,83 @@ class GameScene extends Phaser.Scene {
     this.flashCenter('LEVEL ' + (this.levelIndex + 1) + ' · ' + this.level.name + lapTag);
   }
 
+  // ---- background (parallax layers + drifting decor) ----
+  // Builds a data-driven stack from this.level.bg (far -> near). Falls back to
+  // the old single tinted starfield if a level has no bg block. All layers and
+  // props live in a reserved negative depth band so they never cover gameplay
+  // (player/enemies at depth 0) or the HUD (depth 20).
+  buildBackground(W, H) {
+    this.bgLayers = [];
+    this.props = [];
+    this.bgProps = null;
+    this.nextProp = 0;
+
+    const bg = this.level.bg;
+    if (!bg || !bg.layers) {
+      // fallback: original behavior
+      const stars = this.add.tileSprite(0, 0, W, H, 'startile')
+        .setOrigin(0).setTint(this.level.tint).setDepth(-100);
+      this.bgLayers.push({ sprite: stars, speed: 70 });
+      return;
+    }
+
+    bg.layers.forEach((layer, i) => {
+      const y = layer.y || 0;
+      const h = layer.height || H;
+      const sprite = this.add.tileSprite(0, y, W, h, layer.tex)
+        .setOrigin(0).setDepth(-100 + i);
+      if (layer.tint != null) sprite.setTint(layer.tint);
+      this.bgLayers.push({ sprite: sprite, speed: layer.speed || 0 });
+    });
+
+    this.bgProps = bg.props || null;
+    if (this.bgProps) {
+      this.nextProp = Phaser.Math.Between(this.bgProps.everyMin, this.bgProps.everyMax);
+    }
+  }
+
+  spawnProp() {
+    const p = this.bgProps;
+    const tex = Phaser.Utils.Array.GetRandom(p.textures);
+    // keep props out of the top HUD band and the very bottom
+    const y = Phaser.Math.Between(60, CONFIG.height - 60);
+    const img = this.add.image(CONFIG.width + 40, y, tex).setDepth(-50);
+    img.setScale(0.8 + Math.random() * 0.9);
+    this.props.push({
+      img: img,
+      speed: Phaser.Math.Between(p.speedMin, p.speedMax),
+      spin: p.spin ? (Math.random() < 0.5 ? -1 : 1) * (0.4 + Math.random()) : 0,
+    });
+  }
+
+  updateBackground(dt) {
+    for (let i = 0; i < this.bgLayers.length; i++) {
+      const layer = this.bgLayers[i];
+      layer.sprite.tilePositionX += dt * layer.speed;
+    }
+    if (this.bgProps) {
+      if (this.now >= this.nextProp) {
+        this.spawnProp();
+        this.nextProp = this.now + Phaser.Math.Between(this.bgProps.everyMin, this.bgProps.everyMax);
+      }
+      for (let i = this.props.length - 1; i >= 0; i--) {
+        const prop = this.props[i];
+        prop.img.x -= prop.speed * dt;
+        if (prop.spin) prop.img.rotation += prop.spin * dt;
+        if (prop.img.x < -40) {
+          prop.img.destroy();
+          this.props.splice(i, 1);
+        }
+      }
+    }
+  }
+
   update(time, delta) {
     if (this.over || this.won || this.paused) return;
     const dt = delta / 1000;
     this.now = time;
     this.elapsed += dt;
-    this.stars.tilePositionX += dt * 70;
+    this.updateBackground(dt);
     this.score += dt * 10;
 
     this.handleMovement();

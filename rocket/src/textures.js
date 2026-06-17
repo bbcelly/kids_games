@@ -155,4 +155,118 @@ function buildTextures(scene) {
       px(g, c, x, y, s, s);
     }
   });
+
+  // ===== Per-level parallax backdrops (all 256 wide so they tile horizontally) =====
+
+  // helper: soft seamless nebula clouds — clusters of tiny low-contrast specks
+  // (wrapped mod 256 so the tile has no visible seam). Looks like diffuse dust
+  // rather than hard rectangular blocks.
+  const wrap = (v) => ((Math.floor(v) % 256) + 256) % 256;
+  function cloudField(g, colors, clusters, perCluster, spread) {
+    for (let cl = 0; cl < clusters; cl++) {
+      const cx = Math.random() * 256, cy = Math.random() * 256;
+      const n = perCluster[0] + Math.floor(Math.random() * (perCluster[1] - perCluster[0]));
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const r = Math.pow(Math.random(), 0.6) * spread; // denser toward the center
+        const c = colors[Math.floor(Math.random() * colors.length)];
+        const s = 2 + Math.floor(Math.random() * 3);
+        px(g, c, wrap(cx + Math.cos(a) * r), wrap(cy + Math.sin(a) * r), s, s);
+      }
+    }
+  }
+
+  // --- L1 far layer: asteroid void — near-black with faint diffuse dust + stars ---
+  make('bg_dust', 256, 256, (g) => {
+    px(g, 0x070910, 0, 0, 256, 256);   // deep space fill
+    // very low-contrast dust (barely above the fill) so it never reads as blocks
+    cloudField(g, [0x0c0f18, 0x10131f, 0x121023], 7, [34, 64], 60);
+    for (let i = 0; i < 45; i++) {     // sparse faint stars
+      px(g, 0x55617f, Math.floor(Math.random() * 256), Math.floor(Math.random() * 256), 1, 1);
+    }
+  });
+
+  // --- L2 far layer: cool nebula — soft blue/violet dust + sparse stars ---
+  make('bg_nebula', 256, 256, (g) => {
+    px(g, 0x0a0c1c, 0, 0, 256, 256);   // dark blue fill
+    cloudField(g, [0x111634, 0x16183a, 0x1b1740, 0x12203e], 8, [40, 72], 64);
+    for (let i = 0; i < 55; i++) {
+      const bright = Math.random();
+      const c = bright > 0.85 ? 0xcdd6ff : 0x6a76a0;
+      const s = bright > 0.92 ? 2 : 1;
+      px(g, c, Math.floor(Math.random() * 256), Math.floor(Math.random() * 256), s, s);
+    }
+  });
+
+  // --- L3 far layer: warm planet sky — peach/orange horizontal bands + few stars ---
+  make('bg_sky', 256, 256, (g) => {
+    const bands = [0x2a1730, 0x3d1f33, 0x55293a, 0x6e3a3c, 0x8a5340, 0xa87049, 0xc78d54];
+    const bh = Math.ceil(256 / bands.length);
+    for (let i = 0; i < bands.length; i++) px(g, bands[i], 0, i * bh, 256, bh);
+    for (let i = 0; i < 22; i++) {       // a few faint high stars in the dark top bands
+      px(g, 0xffe2b0, Math.floor(Math.random() * 256), Math.floor(Math.random() * 90), 1, 1);
+    }
+  });
+
+  // --- L2 mid layer: capital-ship hull silhouettes (kept off the edges → tiles cleanly) ---
+  make('fleet_hulls', 256, 96, (g) => {
+    // big wedge hull
+    px(g, 0x20262f, 24, 40, 120, 30);
+    px(g, 0x2b333d, 24, 40, 120, 6);     // top deck highlight
+    px(g, 0x171b22, 40, 70, 90, 8);      // underbelly shadow
+    for (let x = 36; x < 132; x += 12) px(g, 0xffd24a, x, 52, 3, 2); // lit windows
+    // smaller hull, offset + higher
+    px(g, 0x1c2128, 160, 22, 74, 20);
+    px(g, 0x262d36, 160, 22, 74, 4);
+    for (let x = 168; x < 226; x += 11) px(g, 0xbfe6ff, x, 30, 2, 2);
+  });
+
+  // --- L3 mid layer: distant mountain ridge (base-aligned edges → tiles cleanly) ---
+  make('mountains', 256, 110, (g) => {
+    px(g, 0x3a2433, 0, 84, 256, 26);     // ridge base band (spans full width, edges match)
+    // peaks rising from the base; none touch the L/R edge so the seam stays flat
+    const peaks = [[20, 40], [70, 24], [120, 56], [176, 32], [216, 46]];
+    for (let i = 0; i < peaks.length; i++) {
+      const cx = peaks[i][0], ph = peaks[i][1];
+      for (let s = 0; s < ph; s += 4) {  // stepped triangle
+        const half = Math.floor((ph - s) * 0.6);
+        px(g, 0x46293f, cx - half, 84 - s, half * 2, 4);
+      }
+    }
+    px(g, 0x583450, 0, 84, 256, 3);      // lit ridge line
+  });
+
+  // --- L3 near layer: scrolling ground/terrain strip ---
+  make('ground', 256, 70, (g) => {
+    px(g, 0x4a3326, 0, 8, 256, 62);      // dirt body
+    px(g, 0x6b4a36, 0, 4, 256, 6);       // surface band
+    px(g, 0x8a6a4a, 0, 2, 256, 3);       // lit surface line
+    for (let i = 0; i < 30; i++) {       // rock/grit specks
+      const c = Math.random() > 0.5 ? 0x35251b : 0x5e4231;
+      px(g, c, Math.floor(Math.random() * 256), 14 + Math.floor(Math.random() * 50), 2 + Math.floor(Math.random() * 3), 2);
+    }
+  });
+
+  // --- Drifting props ---
+  // L1 asteroids (chunky grey rocks, two sizes)
+  make('rock_sm', 16, 16, (g) => {
+    px(g, 0x4b4843, 3, 2, 10, 12);
+    px(g, 0x615d56, 3, 2, 10, 5);        // lit top
+    px(g, 0x35332f, 6, 10, 6, 4);        // shadow
+    px(g, 0x7a766c, 5, 4, 3, 2);         // highlight
+  });
+  make('rock_lg', 28, 24, (g) => {
+    px(g, 0x4b4843, 4, 3, 20, 18);
+    px(g, 0x615d56, 4, 3, 20, 7);        // lit top
+    px(g, 0x35332f, 10, 15, 12, 6);      // shadow
+    px(g, 0x2a2825, 18, 6, 5, 5);        // crater
+    px(g, 0x7a766c, 7, 5, 5, 3);         // highlight
+  });
+  // L2 metal debris (angular scrap, grey + hot edge)
+  make('debris', 18, 12, (g) => {
+    px(g, 0x5a626b, 2, 3, 12, 6);
+    px(g, 0x7e8893, 2, 3, 12, 2);        // lit edge
+    px(g, 0x343a42, 6, 7, 8, 3);         // shadow
+    px(g, 0xc4502a, 12, 4, 4, 3);        // rusty/hot end
+  });
 }

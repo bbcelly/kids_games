@@ -38,6 +38,15 @@ const LEVELS = [
   {
     name: 'Asteroid Field',
     tint: 0xffffff,
+    bg: {
+      layers: [
+        { tex: 'bg_dust', speed: 16 },                 // far void + dust
+        { tex: 'startile', speed: 32, tint: 0x9fb0d0 },// mid stars
+        { tex: 'startile', speed: 64 },                // near (brighter) stars
+      ],
+      props: { textures: ['rock_sm', 'rock_lg'], everyMin: 900, everyMax: 2200,
+               speedMin: 70, speedMax: 170, spin: true },
+    },
     waves: [
       { at: 1, type: 'grunt', count: 3 },
       { at: 5, type: 'grunt', count: 4 },
@@ -50,6 +59,15 @@ const LEVELS = [
   {
     name: 'Imperial Fleet',
     tint: 0xc8b4ff,
+    bg: {
+      layers: [
+        { tex: 'bg_nebula', speed: 18 },                       // far nebula
+        { tex: 'startile', speed: 40, tint: 0xc8b4ff },        // mid stars
+        { tex: 'fleet_hulls', speed: 24, y: 300, height: 96 }, // slow capital-ship hulls
+      ],
+      props: { textures: ['debris'], everyMin: 1000, everyMax: 2400,
+               speedMin: 90, speedMax: 200, spin: true },
+    },
     waves: [
       { at: 1, type: 'shooter', count: 2 },
       { at: 5, type: 'grunt', count: 5 },
@@ -63,6 +81,14 @@ const LEVELS = [
   {
     name: 'Planet Surface',
     tint: 0xffc7a0,
+    bg: {
+      layers: [
+        { tex: 'bg_sky', speed: 12 },                         // far warm sky
+        { tex: 'mountains', speed: 28, y: 360, height: 110 }, // distant ridge
+        { tex: 'ground', speed: 130, y: 470, height: 70 },    // fast scrolling ground
+      ],
+      // no drifting props on the surface — the ground does the motion
+    },
     waves: [
       { at: 1, type: 'grunt', count: 5 },
       { at: 5, type: 'shooter', count: 3 },
