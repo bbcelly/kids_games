@@ -1,0 +1,21 @@
+# Godot 4
+.godot/
+.import/
+export_presets.cfg.bak
+
+# Build output
+build/
+*.apk
+*.aab
+*.tmp
+
+# Python venv for asset generation
+.venv/
+
+# OS
+.DS_Store
+
+# Android gradle build artifacts (template source is kept, outputs are not)
+android/build/build/
+android/build/.gradle/
+android/build/.cxx/
