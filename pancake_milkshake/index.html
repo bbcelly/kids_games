@@ -94,7 +94,7 @@
 
   <div id="titleScreen" class="overlay">
     <div class="logo">Bunny&nbsp;Pancake<br>Cat&nbsp;Milkshake</div>
-    <div class="subtitle">Pancakes 🥞 for the bunny, milkshakes 🥤 for the cat! Tap the right side before the timer runs out.</div>
+    <div class="subtitle">Pancakes 🥞 for the bunny, milkshakes 🥤 for the cat! Tap a side — or use the ← → arrow keys — before the timer runs out.</div>
     <button id="playBtn" class="btn">Play!</button>
     <div class="credit">Inspired by Wreck-It Ralph 2</div>
   </div>
@@ -276,6 +276,17 @@
     if (actx && actx.state === "suspended") actx.resume();
     if (state === STATE.PLAYING) feed(pointerToLogical(e.clientX) < W / 2 ? "bunny" : "cat");
   }, { passive: false });
+
+  // keyboard: ← feed bunny, → feed cat; Enter/Space start or restart
+  window.addEventListener("keydown", (e) => {
+    if (actx && actx.state === "suspended") actx.resume();
+    if (state === STATE.PLAYING) {
+      if (e.key === "ArrowLeft") { e.preventDefault(); feed("bunny"); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); feed("cat"); }
+    } else if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+      e.preventDefault(); startPlaying();
+    }
+  });
 
   document.getElementById("playBtn").addEventListener("click", startPlaying);
   document.getElementById("againBtn").addEventListener("click", startPlaying);
