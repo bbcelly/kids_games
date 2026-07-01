@@ -3,7 +3,7 @@ extends CanvasLayer
 ## joystick, big right-side action buttons, transient banners, boss bar, and a
 ## pause menu. Laid out in 1280x720 design space (canvas_items stretch).
 
-const DW := 1280.0
+var DW := 1280.0          # real canvas width (set from the viewport in _ready)
 const DH := 720.0
 
 var _player: Player
@@ -26,6 +26,7 @@ var _pause_menu: Control
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	DW = get_viewport().get_visible_rect().size.x
 	_build()
 
 func bind(player: Player, level_def: Dictionary, loop: int) -> void:

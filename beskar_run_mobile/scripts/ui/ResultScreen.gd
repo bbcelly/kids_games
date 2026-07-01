@@ -2,11 +2,12 @@ extends CanvasLayer
 ## "Level Complete" / "Ship Down" overlay shown at the end of a run. Banks are
 ## already recorded by Game; this just celebrates and routes back to the hangar.
 
-const DW := 1280.0
+var DW := 1280.0          # real canvas width (set from the viewport in show_result)
 const DH := 720.0
 
 func show_result(victory: bool, level_idx: int, loop: int, score: int, beskar: int) -> void:
 	layer = 20
+	DW = get_viewport().get_visible_rect().size.x
 	var dim := ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.0)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)

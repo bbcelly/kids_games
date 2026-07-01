@@ -7,13 +7,17 @@ class_name Background
 const W := 1280.0
 const H := 720.0
 
-var _layers: Array = []     # each: {sprites:[Sprite2D,Sprite2D], speed:float}
+var _layers: Array = []     # each: {sprites:[Sprite2D,...], speed:float}
 var _asteroids: Array = []
 var _spawn_asteroids := false
 var _ast_timer := 0.0
+var _vw := W                 # real canvas width
+var _tiles := 2              # tiles per layer (enough to cover the canvas)
 
 func setup(level: Dictionary) -> void:
 	_clear()
+	_vw = get_viewport_rect().size.x
+	_tiles = int(ceil(_vw / W)) + 1
 	_add_layer(level["bg_far"], float(level["far_speed"]), 0.0, -100, Color.WHITE)
 	_add_layer(level["bg_mid"], float(level["mid_speed"]), 0.0, -90, Color.WHITE)
 	if String(level.get("ground", "")) != "":
@@ -31,7 +35,7 @@ func _add_layer(path: String, speed: float, y: float, z: int, tint: Color) -> vo
 		return
 	var tex: Texture2D = load(path)
 	var sprites: Array = []
-	for i in 2:
+	for i in _tiles:
 		var s := Sprite2D.new()
 		s.texture = tex
 		s.centered = false
@@ -46,7 +50,7 @@ func _add_ground(path: String, speed: float) -> void:
 	var tex: Texture2D = load(path)
 	var gy := H - tex.get_height()
 	var sprites: Array = []
-	for i in 2:
+	for i in _tiles:
 		var s := Sprite2D.new()
 		s.texture = tex
 		s.centered = false
@@ -62,7 +66,7 @@ func _process(delta: float) -> void:
 		for s in layer["sprites"]:
 			s.position.x -= speed * delta
 			if s.position.x <= -W:
-				s.position.x += W * 2.0
+				s.position.x += W * _tiles
 	if _spawn_asteroids:
 		_ast_timer -= delta
 		if _ast_timer <= 0.0:
@@ -81,7 +85,7 @@ func _process(delta: float) -> void:
 func _spawn_asteroid() -> void:
 	var s := Sprite2D.new()
 	s.texture = load("res://assets/sprites/asteroid.png")
-	s.position = Vector2(W + 60, randf_range(60, H - 60))
+	s.position = Vector2(_vw + 60, randf_range(60, H - 60))
 	s.z_index = -85
 	var sc := randf_range(0.5, 1.6)
 	s.scale = Vector2(sc, sc)

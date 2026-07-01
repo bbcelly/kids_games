@@ -16,6 +16,7 @@ var _t: float = 0.0
 var _shoot_cd: float = 0.0
 var _weave_phase: float = 0.0
 var _dead: bool = false
+var _vw: float = 1280.0      # real canvas width (set in _ready)
 
 func setup(type: String, loop: int, player: Node2D) -> void:
 	kind = type
@@ -30,6 +31,7 @@ func setup(type: String, loop: int, player: Node2D) -> void:
 func _ready() -> void:
 	collision_layer = 2      # enemy
 	collision_mask = 0       # projectiles & player detect us
+	_vw = get_viewport_rect().size.x
 	add_to_group("enemies")
 	_sprite = Sprite2D.new()
 	_sprite.texture = load(Defs.ENEMIES[kind]["sprite"])
@@ -55,10 +57,10 @@ func _physics_process(delta: float) -> void:
 		vel.y += sin(_t * 6.0 + _weave_phase) * 40.0
 	else:
 		# shooter: drift in, then mostly hold x while bobbing; fire bolts
-		vel.x = -speed * (1.2 if global_position.x > 1140.0 else 0.35)
+		vel.x = -speed * (1.2 if global_position.x > _vw - 140.0 else 0.35)
 		vel.y = sin(_t * 1.6 + _weave_phase) * 70.0
 		_shoot_cd -= delta
-		if _shoot_cd <= 0.0 and global_position.x < 1200.0:
+		if _shoot_cd <= 0.0 and global_position.x < _vw - 80.0:
 			_shoot()
 			_shoot_cd = randf_range(1.4, 2.4)
 	global_position += vel * delta

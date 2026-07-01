@@ -44,7 +44,9 @@ func _ready() -> void:
 	rect.size = ts * 0.8
 	shape.shape = rect
 	add_child(shape)
-	global_position = Vector2(1480, _base_y)
+	var vw := get_viewport_rect().size.x
+	_home_x = vw - 240.0
+	global_position = Vector2(vw + 200.0, _base_y)
 	Audio.play("boss")
 	Events.boss_spawned.emit(boss_name)
 	Events.boss_hp_changed.emit(hp, max_hp)

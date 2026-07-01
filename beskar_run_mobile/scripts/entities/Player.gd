@@ -121,7 +121,10 @@ func _fire() -> void:
 		var spd: float = 520.0 if p.homing else (900.0 if p.is_laser else 760.0)
 		p.velocity = dir * spd
 		p.damage = float(wd["dmg"])
-		p.lifetime = float(wd.get("lifetime", 1.4))
+		# By default a bolt lives long enough to cross the whole screen. Weapons
+		# that want a deliberate short range (e.g. Scatter Gun) override "lifetime".
+		var full_screen_life: float = (get_viewport_rect().size.x + 120.0) / spd
+		p.lifetime = float(wd.get("lifetime", full_screen_life))
 		p.color = wd.get("color", Color.WHITE)
 		p.global_position = muzzle + Vector2(0, float(b.get("offset", 0.0)))
 		parent.add_child(p)

@@ -3,7 +3,9 @@ extends Node2D
 ## and handles win / loss. Built mostly in code so there are no fragile .tscn
 ## dependencies beyond the entry scene.
 
-const PLAY_RECT := Rect2(60, 70, 1160, 580)
+# Play area. Width is set from the real viewport in _ready so the ship can use
+# the whole screen; height stays in the 720 design space.
+var _play_rect := Rect2(60, 70, 1160, 580)
 
 var level_idx: int = 0
 var loop: int = 0
@@ -24,6 +26,9 @@ func _ready() -> void:
 	level_def = Defs.LEVELS[level_idx]
 	GameData.begin_run()
 
+	# Stretch the play area to the real (expanded) canvas width.
+	_play_rect = Rect2(60, 70, get_viewport_rect().size.x - 120, 580)
+
 	# Background
 	_bg = Background.new()
 	add_child(_bg)
@@ -36,7 +41,7 @@ func _ready() -> void:
 
 	# Player
 	_player = Player.new()
-	_player.play_rect = PLAY_RECT
+	_player.play_rect = _play_rect
 	_player.projectile_parent = _world
 	_player.global_position = Vector2(220, 360)
 	_world.add_child(_player)
@@ -84,7 +89,7 @@ func _spawn_wave(index: int, _total: int) -> void:
 		var type := _pick_type(mix)
 		var e := Enemy.new()
 		e.setup(type, loop, _player)
-		e.global_position = Vector2(1340, randf_range(PLAY_RECT.position.y + 20, PLAY_RECT.end.y - 20))
+		e.global_position = Vector2(get_viewport_rect().size.x + 60, randf_range(_play_rect.position.y + 20, _play_rect.end.y - 20))
 		_world.add_child(e)
 		await _wait(randf_range(0.35, 0.7))
 

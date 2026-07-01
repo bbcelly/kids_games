@@ -3,7 +3,7 @@ extends Control
 ## and Weapons, see your level and equipped weapon, then LAUNCH. Everything is
 ## persisted by GameData on each purchase.
 
-const DW := 1280.0
+var DW := 1280.0          # real canvas width (set from the viewport in _ready)
 const DH := 720.0
 
 var _category := "upgrades"
@@ -13,6 +13,7 @@ var _tab_buttons := {}
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
+	DW = get_viewport_rect().size.x
 	var bg := ColorRect.new()
 	bg.color = Color(0.05, 0.07, 0.13)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)

@@ -2,7 +2,7 @@ extends Control
 ## Title screen: "BESKAR RUN — This is the Way". Routes to a run or the hangar
 ## and shows the player's standing (vault, level, loop).
 
-const DW := 1280.0
+var DW := 1280.0          # real canvas width (set from the viewport in _ready)
 const DH := 720.0
 
 var _ship: Sprite2D
@@ -10,6 +10,16 @@ var _t := 0.0
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
+	# The title is the boot scene, so _ready runs before the window resizes to
+	# the device's full size. Rebuild once the viewport settles so everything
+	# stays centred on the real canvas width.
+	get_viewport().size_changed.connect(_build_ui)
+	_build_ui()
+
+func _build_ui() -> void:
+	DW = get_viewport_rect().size.x
+	for c in get_children():
+		c.queue_free()
 
 	var bg := TextureRect.new()
 	bg.texture = load("res://assets/backgrounds/l1_far.png")
