@@ -1,0 +1,8 @@
+# Android build outputs (regenerate with tools/build_apk.sh)
+android/build/
+
+# Signing key (regenerated on first build if missing)
+android/debug.keystore
+
+# macOS
+.DS_Store
