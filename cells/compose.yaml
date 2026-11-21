@@ -3,7 +3,7 @@
 services:
   primordial:
     build: .
-    image: primordial:latest
+    pull_policy: build       # built from this repo, never pulled from a registry (Komodo runs "compose pull")
     container_name: primordial
     restart: unless-stopped
     init: true               # forwards SIGTERM so profiles are flushed to disk on stop
