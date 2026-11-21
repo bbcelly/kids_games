@@ -1,0 +1,29 @@
+# Primordial — docker compose stack (works as a Komodo "Stack": run directory "cells", file "compose.yaml").
+# All settings are optional; put overrides in a .env file or Komodo's Environment section.
+services:
+  primordial:
+    build: .
+    image: primordial:latest
+    container_name: primordial
+    restart: unless-stopped
+    init: true               # forwards SIGTERM so profiles are flushed to disk on stop
+    stop_grace_period: 15s
+    ports:
+      - "${PRIMORDIAL_PORT:-8080}:8080"
+    environment:
+      PORT: 8080
+      DATA_DIR: /data
+      # Room worker threads; default = CPU cores - 1. Set it to match the CPUs you give the container.
+      WORKERS: ${WORKERS:-}
+      # 1 = trust X-Forwarded-For (set when running behind a reverse proxy such as Traefik/Caddy/nginx)
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+      MAX_CLIENTS: ${MAX_CLIENTS:-2000}
+      ROOM_SOFT_CAP: ${ROOM_SOFT_CAP:-50}
+      ROOM_HARD_CAP: ${ROOM_HARD_CAP:-60}
+      MAX_ROOMS: ${MAX_ROOMS:-60}
+      NEW_PROFILES_PER_IP_HOUR: ${NEW_PROFILES_PER_IP_HOUR:-20}
+    volumes:
+      - primordial-data:/data   # player profiles — back this volume up
+
+volumes:
+  primordial-data:
