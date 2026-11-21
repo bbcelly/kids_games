@@ -58,7 +58,7 @@
       renderBar();
       if (currentPanel) openPanel(currentPanel.name, currentPanel.arg, true);
       // don't cover an open panel (e.g. a profile opened from a link); show it when the panel closes
-      if (prof.daily.available && !dailyShown && !currentPanel) { dailyShown = true; showDaily(); }
+      maybeDaily();
     } else if (m.t === 'reward') {
       lastReward = m.s;
       renderReward();
@@ -119,7 +119,18 @@
   }
 
   // ---------- end of life ----------
-  function onDeath() { lastReward = null; pendingDeath = true; $('rewardbox').innerHTML = '<div class="muted">Counting your rewards…</div>'; }
+  // never pop up over a running game (the profile can arrive after Play was pressed) or an open panel
+  let inGame = false;
+  function maybeDaily() {
+    if (prof && prof.daily.available && !dailyShown && !currentPanel && !inGame) { dailyShown = true; showDaily(); }
+  }
+  function onPlay() {
+    inGame = true;
+    const pop = $('dailypop');
+    if (!pop.classList.contains('hidden')) { pop.classList.add('hidden'); dailyShown = false; } // offer it again after this life
+  }
+  function onMenu() { inGame = false; maybeDaily(); }
+  function onDeath() { lastReward = null; pendingDeath = true; inGame = false; maybeDaily(); $('rewardbox').innerHTML = '<div class="muted">Counting your rewards…</div>'; }
 
   function renderReward() {
     const box = $('rewardbox');
@@ -142,6 +153,7 @@
       <div class="muted small" id="rw-lvl">Level ${prof ? prof.level : ''}</div>
       ${lines.join('')}
       ${s.canSave ? '<button class="ghost wide" id="savespec">🧪 Save this creature to your lab</button>' : ''}
+      ${s.savedAlive ? '<div class="muted small">🧪 You already saved this creature to your lab during the game.</div>' : ''}
       ${s.labFull ? '<div class="muted small">Your lab is full — release a specimen in the Lab to save new ones.</div>' : ''}`;
     if (prof) requestAnimationFrame(() => { const el = $('rw-xp'); if (el) el.style.width = `${Math.min(100, prof.into / prof.need * 100)}%`; });
     const b = $('savespec');
@@ -166,7 +178,7 @@
     if (new URLSearchParams(location.search).has('profile')) {
       try { history.replaceState(null, '', location.pathname); } catch {}
     }
-    if (prof && prof.daily.available && !dailyShown) { dailyShown = true; showDaily(); }
+    maybeDaily();
   }
 
   // Profile card HTML (shared by own and public profile). data: publicView-like object.
@@ -620,6 +632,7 @@
 
   window.Meta = {
     handle, token, onDeath, openPublicProfile: pid => openPanel('publicProfile', pid),
+    onPlay, onMenu,
     isOpen: () => !!currentPanel || !$('dailypop').classList.contains('hidden'),
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();

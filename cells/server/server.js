@@ -128,6 +128,7 @@ function onWorkerMessage(entry, m) {
       for (const c of set) if (c.ws.readyState === 1) c.ws.send(str);
     }
     if (m.sess) for (const [cid, , life] of m.sess) onLifeEnded(clients.get(cid) || recentlyGone.get(cid), life);
+    if (m.snap) for (const [cid, life] of m.snap) onLiveSnapshot(clients.get(cid), life);
   } else if (m.t === 'stats') {
     entry.tickMs = m.tickMs;
   }
@@ -137,13 +138,30 @@ function onLifeEnded(c, life) {
   if (!c || !c.profile) return;
   const p = c.profile;
   life.look = P.equippedLook(p);
-  c.lastLife = { ...life, saved: false };
+  const savedAlive = !!c.liveSaved; // already saved during this life via the in-game button
+  c.liveSaved = false;
+  c.lastLife = { ...life, saved: savedAlive };
   const summary = P.applySession(p, life, Date.now());
   store.touch(p);
-  summary.canSave = life.maxStage >= 2 && p.lab.specimens.length < CATALOG.labCapacity(p.level);
-  summary.labFull = life.maxStage >= 2 && !summary.canSave;
+  summary.canSave = !savedAlive && life.maxStage >= 2 && p.lab.specimens.length < CATALOG.labCapacity(p.level);
+  summary.labFull = !savedAlive && life.maxStage >= 2 && !summary.canSave;
+  summary.savedAlive = savedAlive;
   send(c, { t: 'reward', s: summary });
   sendProfile(c);
+}
+
+// The player pressed "save to lab" while alive; the room sent back the creature's current summary.
+function onLiveSnapshot(c, life) {
+  if (!c || !c.profile) return;
+  let r;
+  if (c.liveSaved) r = { ok: false, error: 'This creature is already in your lab.' };
+  else {
+    life.look = P.equippedLook(c.profile);
+    r = P.saveSpecimen(c.profile, { ...life, saved: false }, Date.now());
+    if (r.ok) { c.liveSaved = true; store.touch(c.profile); }
+  }
+  send(c, { t: 'op', op: 'saveSpecimen', live: true, ...r });
+  if (r.ok) sendProfile(c);
 }
 
 function sendProfile(c, extra) {
@@ -346,6 +364,13 @@ wss.on('connection', (ws, req) => {
       case 'in': case 'dash': case 'pick': {
         const e = c.room && roomWorker.get(c.room);
         if (e) queueInput(e, c.room, c.cid, { t: m.t, x: m.x, y: m.y, w: m.w, h: m.h, i: m.i });
+        break;
+      }
+      case 'saveLive': {
+        const e = c.room && roomWorker.get(c.room);
+        if (!c.profile) send(c, { t: 'op', op: 'saveSpecimen', ok: false, error: 'Profile not loaded yet.' });
+        else if (c.liveSaved) send(c, { t: 'op', op: 'saveSpecimen', ok: false, error: 'This creature is already in your lab.' });
+        else if (e) queueInput(e, c.room, c.cid, { t: 'snap' });
         break;
       }
       case 'ping': send(c, { t: 'pong', ts: m.ts }); break;

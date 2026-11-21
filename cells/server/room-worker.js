@@ -3,22 +3,24 @@
 // Messages from main:  {t:'create',room,name} {t:'close',room}
 //                      {t:'join',room,cid,name} {t:'msg',room,cid,m} {t:'leave',room,cid}
 //                      {t:'inputs', list:[[room,cid,m],...]}  (batched player input)
-// Messages to main:    {t:'batch', out:[[cid,str,roomId],...], bc:[[roomId,str],...], sess:[[cid,roomId,life],...]}
+// Messages to main:    {t:'batch', out:[[cid,str,roomId],...], bc:[[roomId,str],...], sess:[[cid,roomId,life],...], snap:[[cid,life],...]}
 //                      {t:'stats', rooms:{id:{humans,bots,tickMs}}}
 const { parentPort, workerData } = require('worker_threads');
 const { Room } = require('./room');
 const { TICK_HZ } = require('./game');
 
 const botTarget = workerData && workerData.botTarget != null ? workerData.botTarget : undefined;
+const humanStartMass = +process.env.TEST_START_MASS || undefined; // tests only
 const rooms = new Map();
-let out = [], bc = [], sess = [];
+let out = [], bc = [], sess = [], snap = [];
 
 function makeRoom(id, name) {
   return new Room(id, name, {
     send: (cid, str) => out.push([cid, str, id]),
     broadcast: str => bc.push([id, str]),
     session: (cid, life) => sess.push([cid, id, life]),
-  }, { game: botTarget != null ? { botTarget } : {} });
+    snap: (cid, life) => snap.push([cid, life]),
+  }, { game: { ...(botTarget != null ? { botTarget } : {}), humanStartMass } });
 }
 
 parentPort.on('message', m => {
@@ -36,9 +38,9 @@ parentPort.on('message', m => {
 });
 
 function flush() {
-  if (out.length || bc.length || sess.length) {
-    parentPort.postMessage({ t: 'batch', out, bc, sess });
-    out = []; bc = []; sess = [];
+  if (out.length || bc.length || sess.length || snap.length) {
+    parentPort.postMessage({ t: 'batch', out, bc, sess, snap });
+    out = []; bc = []; sess = []; snap = [];
   }
 }
 

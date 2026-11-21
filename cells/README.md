@@ -33,7 +33,7 @@ All rewards are **cosmetic** — nothing gives an advantage in PvP.
 - **Achievements:** 23 badges, many with exclusive items; up to 3 can be shown on your card.
 - **Collection:** 21 entries (stages, traits, trait masters, special events), each with a real
   biology fact.
-- **Lab:** save creatures (Colony stage or higher) as specimens that swim in your own decorated
+- **Lab:** save creatures (Colony stage or higher) as specimens, either mid-game with the 🧪 button or on the end screen, that swim in your own decorated
   aquarium; more places at higher levels.
 - **Profile card:** avatar, title, badges, stats, and your lab — shareable via `?profile=<id>`, and
   opened by clicking a name on the in-game leaderboard.

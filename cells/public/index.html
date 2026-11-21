@@ -28,6 +28,9 @@
   #stagesub { font-size: 12px; color: var(--muted); margin-top: 2px; }
   .bar { height: 9px; background: rgba(255,255,255,.1); border-radius: 6px; overflow: hidden; margin-top: 7px; }
   .bar > div { height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .2s; }
+  #labbtn { pointer-events: auto; margin-top: 8px; width: 100%; padding: 6px 8px; border-radius: 8px; font: 700 13px inherit;
+    background: rgba(55,224,180,.15); border: 1px solid var(--accent); color: var(--ink); cursor: pointer; }
+  #labbtn:disabled { opacity: .55; cursor: default; }
   #stats { font-size: 13px; margin-top: 7px; display: flex; gap: 14px; }
   #traitlist { font-size: 12px; margin-top: 6px; color: var(--muted); line-height: 1.5; }
   #dashbar { margin-top: 6px; height: 5px; }
@@ -90,6 +93,13 @@
     color: var(--ink); font: 800 15px inherit; display: none; }
   body.touch #dashbtn { display: block; }
   body.touch #choice { bottom: 124px; }
+  #ctrlbtn { position: absolute; left: 118px; bottom: 34px; width: 44px; height: 44px; border-radius: 50%; display: none;
+    pointer-events: auto; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.25); font-size: 20px; }
+  body.touch #ctrlbtn { display: block; }
+  #touchctl { display: none; margin-top: 12px; gap: 6px; align-items: center; justify-content: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  body.touch #touchctl { display: flex; }
+  #touchctl button { padding: 7px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,.2); background: transparent; color: var(--ink); font: inherit; }
+  #touchctl button.on { background: rgba(127,215,255,.22); border-color: var(--accent); }
 
   #minimap { position: absolute; right: 12px; bottom: 12px; width: 150px; height: 150px; border-radius: 10px; }
   #ping { position: absolute; right: 168px; bottom: 14px; font-size: 11px; color: var(--muted); }
@@ -275,6 +285,7 @@
     <div id="stats"><span>Mass <b id="mass">10</b></span><span>Eaten <b id="kills">0</b></span></div>
     <div class="bar" id="dashbar"><div></div></div>
     <div id="traitlist"></div>
+    <button id="labbtn" class="hidden" title="Save this creature to your lab — you keep playing">🧪 Save to lab</button>
   </div>
   <div id="lb" class="panel"><div id="roominfo"><span id="roomname"></span><button id="invite" class="ghost">Invite</button></div><h3>Biggest organisms</h3><ol id="lblist"></ol><div id="online"></div></div>
   <div id="feed"></div>
@@ -287,6 +298,7 @@
     </div>
   </div>
   <button id="dashbtn">DASH</button>
+  <button id="ctrlbtn" title="Switch touch controls">🕹️</button>
   <canvas id="minimap" class="panel"></canvas>
   <div id="ping"></div>
 </div>
@@ -312,13 +324,16 @@
     <input id="name" type="text" maxlength="16" placeholder="Name your organism" autocomplete="off">
     <button id="play" class="play" disabled>CONNECTING…</button>
     <div id="status"></div>
+    <div id="touchctl"><span>Touch controls</span>
+      <button data-touchmode="stick">🕹️ Joystick</button><button data-touchmode="follow">👆 Follow finger</button>
+    </div>
     <div id="roombox">
       <div class="roomhead"><span>Rooms <small id="roomtotal"></small></span><button id="newroom" class="ghost">+ New room</button></div>
       <div id="roomlist"><div class="empty">Loading rooms…</div></div>
     </div>
     <div class="stagesrow"><span>Prokaryote</span><span>Eukaryote</span><span>Colony</span><span>Multi&shy;cellular</span><span>Predator</span><span>Apex</span></div>
     <div class="help">
-      <b>Steer</b> with the mouse, a finger, or WASD / arrows.<br>
+      <b>Steer</b> with the mouse, WASD / arrows, or on touch screens a joystick that appears under your finger (or follow-the-finger).<br>
       <b>Eat</b> nutrients and any organism clearly smaller than you (about 20% smaller).<br>
       <b>Dash</b> with Space or the DASH button — costs a little mass.<br>
       <b>Evolve</b> as you grow and pick traits with 1 / 2. Play with whoever is in your room, or send friends an invite link.

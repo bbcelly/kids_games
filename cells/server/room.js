@@ -4,6 +4,7 @@
 //   out.send(cid, str)      -> one client
 //   out.broadcast(str)      -> every client in this room
 //   out.session(cid, life)  -> a player's life ended (for rewards; handled by the main thread)
+//   out.snap(cid, life)     -> summary of a living creature the player wants to save to the lab
 const { Game, WORLD, TICK_HZ, packTraits } = require('./game');
 const CATALOG = require('../public/catalog');
 
@@ -55,6 +56,9 @@ class Room {
         break;
       case 'dash': this.game.dash(c.org); break;
       case 'pick': this.game.pickTrait(c.org, m.i | 0); break;
+      case 'snap': // save the living creature to the lab without ending the life
+        if (c.org.alive && this.out.snap) this.out.snap(cid, this.game.lifeSummary(c.org));
+        break;
     }
   }
 

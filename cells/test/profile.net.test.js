@@ -13,9 +13,9 @@ const BASE = `http://127.0.0.1:${PORT}`;
 const DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'primordial-net-'));
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
-function startServer() {
+function startServer(extraEnv = {}) {
   const proc = spawn(process.execPath, [path.join(__dirname, '..', 'server', 'server.js')], {
-    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', WORKERS: '1', DATA_DIR: DATA, REWARD_MIN_LIFE_SECS: '0', REWARD_MIN_LIFE_MASS: '0' },
+    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', WORKERS: '1', DATA_DIR: DATA, REWARD_MIN_LIFE_SECS: '0', REWARD_MIN_LIFE_MASS: '0', ...extraEnv },
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   return new Promise((resolve, reject) => {
@@ -163,6 +163,38 @@ async function test(name, fn) { await fn(); passed++; console.log('ok -', name);
       c.send({ t: 'restore', code: 'XXXX-XXXX-XXXX' });
       assert.ok(!(await c.next(x => x.t === 'op' && x.op === 'restore')).ok);
       c.close();
+    });
+    await test('a living creature can be saved to the lab once, without dying', async () => {
+      const c = new Client(); await c.open;
+      c.send({ t: 'hello', token }); await c.next('profile');
+      c.send({ t: 'join', name: 'Tiny', room: 'auto' }); await c.next('room');
+      await wait(300);
+      c.send({ t: 'saveLive' }); // stage 1 (normal start mass): refused
+      const small = await c.next(x => x.t === 'op' && x.op === 'saveSpecimen');
+      assert.ok(!small.ok && /Colony/.test(small.error), small.error);
+      c.close();
+
+      await stopServer(server);
+      server = await startServer({ TEST_START_MASS: '120' }); // players spawn at Colony stage
+      const d = new Client(); await d.open;
+      d.send({ t: 'hello', token }); const before = (await d.next('profile')).p.lab.specimens.length;
+      d.send({ t: 'join', name: 'Keeper', room: 'auto' }); await d.next('room');
+      await wait(400);
+      d.send({ t: 'saveLive' });
+      const op = await d.next(x => x.t === 'op' && x.op === 'saveSpecimen');
+      assert.ok(op.ok && op.live, op.error);
+      const p = await d.next('profile');
+      assert.strictEqual(p.p.lab.specimens.length, before + 1);
+      assert.strictEqual(p.p.lab.specimens.at(-1).name, 'Keeper');
+      assert.ok(p.p.lab.specimens.at(-1).stage >= 2);
+      d.send({ t: 'saveLive' }); // same life again: refused
+      assert.ok(!(await d.next(x => x.t === 'op' && x.op === 'saveSpecimen')).ok);
+      d.send({ t: 'leave' }); // ending the life still rewards, but it can't be saved a second time
+      const rw = await d.next('reward');
+      assert.ok(rw.s.savedAlive && !rw.s.canSave);
+      d.send({ t: 'saveSpecimen' });
+      assert.ok(!(await d.next(x => x.t === 'op' && x.op === 'saveSpecimen')).ok);
+      d.close();
     });
     console.log(`\n${passed} tests passed`);
   } catch (e) {

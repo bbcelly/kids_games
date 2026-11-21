@@ -21,6 +21,7 @@
   let ws = null, connected = false;
   let world = 5000, stages = [], traits = [];
   let myId = null, me = null, playing = false;
+  let hasProfile = false, liveSaved = false, labSaving = false; // in-game "save to lab"
   // room we are in (from server), and room we want (from ?room= link or the list)
   let room = null; // {id, name}
   let wantRoom = new URLSearchParams(location.search).get('room') || null;
@@ -52,7 +53,7 @@
       ui.play.disabled = true; ui.play.textContent = 'RECONNECTING…';
       ui.status.textContent = 'Lost connection — retrying…';
       ui.hud.classList.add('hidden'); ui.death.classList.add('hidden'); ui.start.classList.remove('hidden');
-      resetWorld(); myId = null; me = null;
+      resetWorld(); myId = null; me = null; Meta.onMenu();
       if (room) wantRoom = room.id; // reconnect into the same room
       room = null;
       setTimeout(connect, 1500);
@@ -66,7 +67,7 @@
     switch (m.t) {
       case 'welcome': world = m.world; stages = m.stages; traits = m.traits; break;
       case 's': onSnapshot(m); break;
-      case 'spawned':
+      case 'spawned': liveSaved = labSaving = false;
         myId = m.id; playing = true; lastStage = 0;
         ui.start.classList.add('hidden'); ui.death.classList.add('hidden'); ui.hud.classList.remove('hidden');
         break;
@@ -88,7 +89,13 @@
       case 'evolve': showToast(`EVOLVED!`, stages[m.stage] ? stages[m.stage].name : ''); break;
       case 'dead': onDead(m); break;
       case 'pong': pingMs = Math.round(performance.now() - m.ts); break;
-      case 'profile': case 'reward': case 'op': Meta.handle(m); break;
+      case 'profile': case 'reward': case 'op':
+        if (m.t === 'profile') hasProfile = !!m.p;
+        if (m.t === 'op' && m.op === 'saveSpecimen' && m.live) {
+          if (m.ok) liveSaved = true;
+          labSaving = false; lastHud = 0;
+        }
+        Meta.handle(m); break;
     }
   }
 
@@ -127,6 +134,7 @@
     if (!connected) return;
     const name = ui.name.value.trim();
     try { localStorage.setItem('primordial-name', name); } catch {}
+    Meta.onPlay();
     send({ t: 'join', name, room: typeof target === 'string' ? target : (wantRoom || 'auto') });
   }
   ui.play.onclick = () => startGame();
@@ -164,7 +172,7 @@
 
   function showMenu(status) {
     ui.hud.classList.add('hidden'); ui.death.classList.add('hidden'); ui.choice.classList.add('hidden');
-    ui.start.classList.remove('hidden');
+    ui.start.classList.remove('hidden'); Meta.onMenu();
     ui.status.textContent = status || '';
     refreshRooms();
   }
@@ -258,6 +266,9 @@
     const t = unpackTraits(me.tr);
     const maxCd = 3 * (1 - 0.25 * (t.metabolism || 0));
     ui.dashbar.style.width = `${(1 - me.cd / maxCd) * 100}%`;
+    // Colony stage and up can be saved to the lab while alive
+    ui.labbtn.classList.toggle('hidden', !hasProfile || st < 2);
+    if (!labSaving) { ui.labbtn.disabled = liveSaved; ui.labbtn.textContent = liveSaved ? '🧪 In your lab ✓' : '🧪 Save to lab'; }
     ui.traitlist.innerHTML = traits.filter(tr => t[tr.key]).map(tr => `${esc(tr.name)} ${'●'.repeat(t[tr.key])}`).join('<br>');
     ui.ping.textContent = `${pingMs} ms`;
 
@@ -287,9 +298,55 @@
   const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
   if (isTouch) document.body.classList.add('touch');
 
-  canvas.addEventListener('pointermove', e => { pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true; useKeys = false; });
-  canvas.addEventListener('pointerdown', e => { pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true; useKeys = false; });
-  canvas.addEventListener('pointerup', e => { if (e.pointerType === 'touch') pointer.active = false; });
+  // Touch control mode: 'stick' = a virtual joystick that appears wherever the finger lands,
+  // 'follow' = swim towards the finger. Remembered per device.
+  const STICK_R = 60; // px of knob travel for full speed
+  let touchMode = 'stick';
+  try { touchMode = localStorage.getItem('primordial-touch') || 'stick'; } catch {}
+  const stick = { id: null, ox: 0, oy: 0, x: 0, y: 0 };
+  function setTouchMode(m) {
+    touchMode = m; stick.id = null; pointer.active = false;
+    try { localStorage.setItem('primordial-touch', m); } catch {}
+    document.querySelectorAll('[data-touchmode]').forEach(b => b.classList.toggle('on', b.dataset.touchmode === m));
+    ui.ctrlbtn.textContent = m === 'stick' ? '🕹️' : '👆';
+  }
+  ui.ctrlbtn = $('ctrlbtn');
+  document.querySelectorAll('[data-touchmode]').forEach(b => b.addEventListener('click', () => setTouchMode(b.dataset.touchmode)));
+  ui.ctrlbtn.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); setTouchMode(touchMode === 'stick' ? 'follow' : 'stick'); });
+  setTouchMode(touchMode);
+  const usesStick = e => e.pointerType === 'touch' && touchMode === 'stick';
+
+  canvas.addEventListener('pointerdown', e => {
+    useKeys = false;
+    if (usesStick(e)) {
+      if (stick.id === null) { stick.id = e.pointerId; stick.ox = stick.x = e.clientX; stick.oy = stick.y = e.clientY; }
+      return;
+    }
+    pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true;
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (usesStick(e)) {
+      if (e.pointerId !== stick.id) return;
+      const dx = e.clientX - stick.ox, dy = e.clientY - stick.oy, l = Math.hypot(dx, dy);
+      if (l > STICK_R * 1.6) { stick.ox += dx / l * (l - STICK_R * 1.6); stick.oy += dy / l * (l - STICK_R * 1.6); } // base trails the finger
+      stick.x = e.clientX; stick.y = e.clientY;
+      return;
+    }
+    pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true; useKeys = false;
+  });
+  const endTouch = e => {
+    if (e.pointerId === stick.id) stick.id = null;
+    if (e.pointerType === 'touch') pointer.active = false;
+  };
+  canvas.addEventListener('pointerup', endTouch);
+  canvas.addEventListener('pointercancel', endTouch);
+  ui.labbtn = $('labbtn');
+  ui.labbtn.addEventListener('pointerdown', e => e.stopPropagation());
+  ui.labbtn.addEventListener('click', () => {
+    if (liveSaved || labSaving) return;
+    labSaving = true; ui.labbtn.disabled = true; ui.labbtn.textContent = 'Saving…';
+    send({ t: 'saveLive' });
+  });
   ui.dashbtn.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); send({ t: 'dash' }); });
 
   addEventListener('keydown', e => {
@@ -320,6 +377,14 @@
       if (keys.has('s') || keys.has('arrowdown')) y++;
       const l = Math.hypot(x, y) || 1;
       return { x: x / l * 2000, y: y / l * 2000 };
+    }
+    if (stick.id !== null) {
+      const dx = stick.x - stick.ox, dy = stick.y - stick.oy, l = Math.hypot(dx, dy);
+      if (l < 8) return { x: 0, y: 0 }; // dead zone
+      // the server scales speed by distance up to (2r + 40) world units; map full knob travel onto that
+      const mine = ents.get(myId), full = (mine ? mine.dr * 2 : 30) + 40;
+      const k = Math.min(1, l / STICK_R) * full / l;
+      return { x: dx * k, y: dy * k };
     }
     if (!pointer.active) return { x: 0, y: 0 };
     return { x: (pointer.x - innerWidth / 2) / cam.scale, y: (pointer.y - innerHeight / 2) / cam.scale };
@@ -467,6 +532,18 @@
   }
 
   let lastFrame = performance.now();
+  function drawStick() {
+    const dx = stick.x - stick.ox, dy = stick.y - stick.oy, l = Math.hypot(dx, dy);
+    const k = l > STICK_R ? STICK_R / l : 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.beginPath(); ctx.arc(stick.ox, stick.oy, STICK_R, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(127,215,255,.10)'; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(127,215,255,.45)'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(stick.ox + dx * k, stick.oy + dy * k, 26, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(127,215,255,.45)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.stroke();
+  }
+
   function frame(now) {
     const dt = Math.min(0.1, (now - lastFrame) / 1000);
     lastFrame = now;
@@ -513,6 +590,7 @@
     for (const e of list) drawOrganism(e, t);
     ctx.restore();
 
+    if (playing && stick.id !== null) drawStick();
     if (playing) { updateHud(now); drawMinimap(); }
     requestAnimationFrame(frame);
   }

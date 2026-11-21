@@ -67,6 +67,7 @@ class Game {
   constructor(opts = {}) {
     this.rand = opts.rand || Math.random;
     this.botTarget = opts.botTarget != null ? opts.botTarget : 14;
+    this.humanStartMass = opts.humanStartMass || START_MASS; // tests only: spawn players bigger
     this.nextId = 1;
     this.tick = 0;
     this.orgs = new Map(); // id -> organism (players and bots)
@@ -156,6 +157,7 @@ class Game {
     o.traits = emptyTraits(); o.pendingChoices = [];
     o.dashT = 0; o.dashCd = 0; o.poisonT = 0;
     o.alive = true; o.kills = 0; o.maxMass = START_MASS; o.bornAt = this.tick;
+    if (!o.isBot && this.humanStartMass !== START_MASS) { o.mass = o.maxMass = this.humanStartMass; o.r = radiusOf(o.mass); }
     o.stats = { food: 0, playerKills: 0, killsBig: 0, killedApex: 0, dashes: 0, poisoned: 0 };
     o.input = { dx: 0, dy: 0 };
   }
