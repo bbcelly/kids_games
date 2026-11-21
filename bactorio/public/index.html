@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Biofilm</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%237bdcb5' stroke='%231f5c47' stroke-width='5'/%3E%3Ccircle cx='32' cy='32' r='11' fill='%23f6ffd9'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<div id="hud" class="hidden">
+  <div id="topbar">
+    <div id="mname"></div>
+    <div id="chips"></div>
+    <div id="gauges"></div>
+    <div id="ctl"></div>
+  </div>
+  <div id="left">
+    <div id="objectives" class="panel"></div>
+    <div id="research" class="panel hidden"></div>
+  </div>
+  <div id="inspector" class="panel hidden"></div>
+  <div id="buildbar"><div id="tabs"></div><div id="builds"></div></div>
+  <canvas id="minimap" width="180" height="180"></canvas>
+  <div id="toasts"></div>
+  <div id="banner" class="hidden"></div>
+  <div id="cursorTip" class="hidden"></div>
+</div>
+
+<div id="tip" class="hidden"></div>
+<div id="modal" class="hidden"></div>
+<div id="menu"></div>
+<div id="loading">Biofilm…</div>
+
+<script type="module" src="main.js"></script>
+</body>
+</html>

@@ -10,5 +10,8 @@
     "test:browser": "node tools/playtest.js"
   },
   "license": "ISC",
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "puppeteer-core": "^25.1.0"
+  }
 }

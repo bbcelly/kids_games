@@ -89,3 +89,6 @@ coverage/
 
 # Primordial player profiles (runtime data, never commit)
 cells/data/
+
+# Biofilm browser play-test screenshots
+bactorio/test/shots/

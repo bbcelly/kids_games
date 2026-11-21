@@ -287,3 +287,17 @@ test('thousands of buildings still simulate faster than real time', () => {
   console.log(`       ${n} buildings: ${ms.toFixed(2)} ms per tick (budget 16.6 ms)`);
   assert.ok(ms < 8, `too slow: ${ms.toFixed(2)} ms per tick`);
 });
+
+test('every literal text key used by the interface exists', async () => {
+  const { readdirSync, readFileSync } = await import('node:fs');
+  const root = new URL('../public/', import.meta.url);
+  const files = [];
+  const walk = (dir) => { for (const d of readdirSync(new URL(dir, root), { withFileTypes: true })) { if (d.isDirectory()) { if (d.name !== 'locale') walk(dir + d.name + '/'); } else if (d.name.endsWith('.js')) files.push(dir + d.name); } };
+  walk('');
+  const missing = new Set();
+  for (const f of files) {
+    const src = readFileSync(new URL(f, root), 'utf8');
+    for (const m of src.matchAll(/\bt\('([A-Za-z0-9_.]+)'[,)]/g)) if (!reg.locales.cs[m[1]]) missing.add(`${f}: ${m[1]}`);
+  }
+  assert.deepEqual([...missing], []);
+});
