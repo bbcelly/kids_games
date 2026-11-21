@@ -1,0 +1,17 @@
+{
+  "name": "primordial",
+  "version": "1.0.0",
+  "description": "Massively multiplayer cell-evolution PvP game",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "test": "node test/sim.test.js",
+    "test:net": "node test/net.test.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ws": "^8.23.0"
+  },
+  "private": true
+}

@@ -1,0 +1,17 @@
+[Unit]
+Description=Primordial - multiplayer evolution game server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/kids_games/cells
+ExecStart=/usr/bin/node server/server.js
+Environment=PORT=8080
+Environment=NODE_ENV=production
+Restart=always
+RestartSec=2
+# basic hardening
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
