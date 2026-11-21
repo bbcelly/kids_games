@@ -22,8 +22,10 @@ services:
       ROOM_HARD_CAP: ${ROOM_HARD_CAP:-60}
       MAX_ROOMS: ${MAX_ROOMS:-60}
       NEW_PROFILES_PER_IP_HOUR: ${NEW_PROFILES_PER_IP_HOUR:-20}
+      # owner of the files in the data directory on the host (the game runs as this user, not root)
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
     volumes:
-      - primordial-data:/data   # player profiles — back this volume up
-
-volumes:
-  primordial-data:
+      # Player profiles, one JSON file each, in a directory on the host — back this up.
+      # Use an absolute path outside the stack/repo folder so a re-clone never touches it.
+      - ${PRIMORDIAL_DATA_DIR:-/srv/primordial/data}:/data

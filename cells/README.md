@@ -65,26 +65,37 @@ journalctl -u primordial -f
 
 ### Docker / Komodo
 
-`Dockerfile` + `compose.yaml` build a small `node:20-alpine` image (runs as non-root, has a health check
-on `/health`). Profiles are stored in the named volume `primordial-data` (mounted at `/data`).
+`Dockerfile` + `compose.yaml` build a small `node:20-alpine` image with a health check on `/health`.
+Profiles are stored in a **directory on the host**, bind-mounted at `/data`: by default
+`/srv/primordial/data` (change it with `PRIMORDIAL_DATA_DIR`). Docker creates it on first start and the
+entrypoint makes it owned by `PUID:PGID` (default 1000:1000); the game itself never runs as root.
+Back up that directory — it holds one JSON file per player in `profiles/`.
 
 ```bash
 docker compose up -d --build      # http://<host>:8080/
 docker compose logs -f
 ```
 
-In **Komodo**: create a *Stack* from this Git repository, set **Run Directory** to `cells` and the
-**File Path** to `compose.yaml`, then Deploy. Optional variables (Komodo "Environment" or a `.env` file):
-`PRIMORDIAL_PORT` (host port, 8080), `WORKERS` (set to the CPUs the container may use), `TRUST_PROXY=1`
-behind a reverse proxy, plus `MAX_CLIENTS`, `ROOM_SOFT_CAP`, `ROOM_HARD_CAP`, `MAX_ROOMS`, `NEW_PROFILES_PER_IP_HOUR`.
+In **Komodo**: create a *Stack* with source **Git Repo** (`bbcelly/kids_games`, branch `master`),
+**Run Directory** `cells`, **File Path** `compose.yaml`, then Deploy. Optional variables (Komodo
+"Environment" or a `.env` file):
+- `PRIMORDIAL_DATA_DIR` — host directory for profiles (`/srv/primordial/data`); use an absolute path
+  outside the stack/repo folder so a re-clone never touches it
+- `PUID` / `PGID` — owner of the files there (1000), e.g. your backup user
+- `PRIMORDIAL_PORT` — host port (8080)
+- `WORKERS` — set to the CPUs the container may use (default: all host cores − 1)
+- `TRUST_PROXY=1` behind a reverse proxy, plus `MAX_CLIENTS`, `ROOM_SOFT_CAP`, `ROOM_HARD_CAP`,
+  `MAX_ROOMS`, `NEW_PROFILES_PER_IP_HOUR`
 
+Notes:
 - A reverse proxy must pass WebSocket upgrades on `/ws` (Traefik and Caddy do by default; nginx needs
   `proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade";`). With HTTPS the
   client switches to `wss://` automatically.
-- Moving existing players from the systemd install: copy `cells/data/profiles/*.json` into the volume, e.g.
-  `docker compose cp data/profiles primordial:/data/ && docker compose restart` (the files must stay
-  owned by uid 1000 — `docker compose exec -u root primordial chown -R node:node /data`).
-- `docker compose down` stops the game gracefully (profiles are flushed); never use `down -v` — that deletes the volume.
+- Moving existing players from the systemd install: stop the old server, then copy
+  `cells/data/profiles/` into `$PRIMORDIAL_DATA_DIR/profiles/` and (re)start the container — ownership
+  is fixed automatically.
+- Profiles are written every 5 s and flushed on `docker compose stop/down`. For a consistent backup
+  copy the directory as is (each file is written atomically), or stop the stack briefly.
 
 `GET /rooms` lists rooms; `GET /api/profile/<id>` is a public profile (no secrets); `GET /health` returns players, rooms, per-worker tick time and main-thread lag.
 
