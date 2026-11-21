@@ -5,7 +5,7 @@
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",
-    "test": "node test/sim.test.js",
+    "test": "node test/sim.test.js && node test/rooms.test.js",
     "test:net": "node test/net.test.js"
   },
   "author": "",

@@ -7,6 +7,8 @@
   const ui = {
     hud: $('hud'), start: $('startscreen'), death: $('deathscreen'),
     name: $('name'), play: $('play'), again: $('again'), status: $('status'),
+    roomlist: $('roomlist'), roomtotal: $('roomtotal'), newroom: $('newroom'), changeroom: $('changeroom'),
+    roomname: $('roomname'), invite: $('invite'),
     stagename: $('stagename'), stagesub: $('stagesub'), evobar: $('evobar').firstElementChild,
     dashbar: $('dashbar').firstElementChild, mass: $('mass'), kills: $('kills'), traitlist: $('traitlist'),
     lblist: $('lblist'), online: $('online'), feed: $('feed'), toast: $('toast'),
@@ -19,6 +21,10 @@
   let ws = null, connected = false;
   let world = 5000, stages = [], traits = [];
   let myId = null, me = null, playing = false;
+  // room we are in (from server), and room we want (from ?room= link or the list)
+  let room = null; // {id, name}
+  let wantRoom = new URLSearchParams(location.search).get('room') || null;
+  let roomsCache = [];
   const meta = new Map();   // id -> {name, hue, bot}
   const ents = new Map();   // id -> render entity
   let food = [];            // flat [x,y,c,...]
@@ -38,13 +44,16 @@
       connected = true;
       ui.play.disabled = false; ui.play.textContent = 'PLAY';
       ui.status.textContent = '';
+      refreshRooms();
     };
     ws.onclose = () => {
       connected = false; playing = false;
       ui.play.disabled = true; ui.play.textContent = 'RECONNECTING…';
       ui.status.textContent = 'Lost connection — retrying…';
       ui.hud.classList.add('hidden'); ui.death.classList.add('hidden'); ui.start.classList.remove('hidden');
-      ents.clear(); meta.clear(); myId = null; me = null;
+      resetWorld(); myId = null; me = null;
+      if (room) wantRoom = room.id; // reconnect into the same room
+      room = null;
       setTimeout(connect, 1500);
     };
     ws.onmessage = e => handle(JSON.parse(e.data));
@@ -60,6 +69,18 @@
         ui.start.classList.add('hidden'); ui.death.classList.add('hidden'); ui.hud.classList.remove('hidden');
         break;
       case 'lb': lb = m.l; online = m.n; bots = m.b; renderLeaderboard(); break;
+      case 'room':
+        if (!room || room.id !== m.id) resetWorld();
+        room = { id: m.id, name: m.name }; wantRoom = m.id;
+        ui.roomname.textContent = m.name;
+        try { history.replaceState(null, '', `${location.pathname}?room=${m.id}`); } catch {}
+        if (m.note) showToast(m.note, '');
+        break;
+      case 'roomclosed':
+        playing = false; room = null; wantRoom = null; resetWorld();
+        showMenu('That room was closed — pick another one.');
+        break;
+      case 'full': ui.status.textContent = m.note; break;
       case 'kill': addFeed(m); break;
       case 'gone': ents.delete(m.id); meta.delete(m.id); break;
       case 'evolve': showToast(`EVOLVED!`, stages[m.stage] ? stages[m.stage].name : ''); break;
@@ -97,14 +118,81 @@
   }
 
   // ---------- menus ----------
-  function startGame() {
+  function startGame(target) {
     if (!connected) return;
     const name = ui.name.value.trim();
     try { localStorage.setItem('primordial-name', name); } catch {}
-    send({ t: 'join', name });
+    send({ t: 'join', name, room: typeof target === 'string' ? target : (wantRoom || 'auto') });
   }
-  ui.play.onclick = startGame;
-  ui.again.onclick = startGame;
+  ui.play.onclick = () => startGame();
+  ui.again.onclick = () => startGame(room ? room.id : 'auto');
+  ui.newroom.onclick = () => startGame('new');
+  ui.changeroom.onclick = () => {
+    send({ t: 'leave' });
+    room = null; wantRoom = null; resetWorld();
+    try { history.replaceState(null, '', location.pathname); } catch {}
+    showMenu('');
+  };
+  ui.invite.addEventListener('pointerdown', e => e.stopPropagation());
+  ui.invite.onclick = async e => {
+    e.stopPropagation();
+    if (!room) return;
+    const link = `${location.origin}${location.pathname}?room=${room.id}`;
+    if (await copyText(link)) showToast('Invite link copied!', link);
+    else prompt('Send this link to your friends:', link);
+  };
+
+  // navigator.clipboard only exists on HTTPS/localhost; plain-HTTP LAN needs the old way
+  async function copyText(text) {
+    try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true; } } catch {}
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return ok;
+    } catch { return false; }
+  }
+
+  function resetWorld() { ents.clear(); meta.clear(); food = []; lb = []; renderLeaderboard(); }
+
+  function showMenu(status) {
+    ui.hud.classList.add('hidden'); ui.death.classList.add('hidden'); ui.choice.classList.add('hidden');
+    ui.start.classList.remove('hidden');
+    ui.status.textContent = status || '';
+    refreshRooms();
+  }
+
+  function updatePlayLabel() {
+    if (!connected) return;
+    const r = wantRoom && roomsCache.find(x => x.id === wantRoom);
+    ui.play.textContent = r ? `PLAY IN ${r.name.toUpperCase()}` : 'PLAY';
+  }
+
+  async function refreshRooms() {
+    if (ui.start.classList.contains('hidden')) return;
+    try {
+      const res = await fetch('rooms', { cache: 'no-store' });
+      const data = await res.json();
+      roomsCache = data.rooms;
+      ui.roomtotal.textContent = `· ${data.players} playing in ${data.rooms.length} room${data.rooms.length === 1 ? '' : 's'}`;
+      ui.roomlist.innerHTML = data.rooms.map(r =>
+        `<button class="room${r.id === wantRoom ? ' sel' : ''}${r.players >= r.cap ? ' full' : ''}" data-id="${esc(r.id)}">${esc(r.name)}<span>${r.players} / ${r.cap} players</span></button>`
+      ).join('') || '<div class="empty">No rooms yet — press PLAY to open one.</div>';
+      if (wantRoom && !roomsCache.some(r => r.id === wantRoom)) {
+        ui.status.textContent = 'The room from your link is gone — PLAY puts you in another one.';
+        wantRoom = null;
+      }
+    } catch { /* offline: keep the old list */ }
+    updatePlayLabel();
+  }
+  ui.roomlist.addEventListener('click', e => {
+    const b = e.target.closest('.room');
+    if (!b || b.classList.contains('full')) return;
+    startGame(b.dataset.id);
+  });
+  setInterval(refreshRooms, 3000);
   ui.name.addEventListener('keydown', e => { if (e.key === 'Enter') startGame(); e.stopPropagation(); });
 
   function onDead(m) {
@@ -140,8 +228,10 @@
 
   function renderLeaderboard() {
     ui.lblist.innerHTML = lb.map(p =>
-      `<li class="${p.id === myId ? 'me' : ''}">${esc(p.name)}<span>${p.mass}</span></li>`).join('');
-    ui.online.textContent = `${online} player${online === 1 ? '' : 's'} online · ${bots} wild organisms`;
+      `<li class="${p.id === myId ? 'me' : ''}">${esc(p.name)}<span>${p.mass}</span></li>`).join('') +
+      (playing && me && me.a && !lb.some(p => p.id === myId)
+        ? `<li class="me" value="0" style="list-style:none">You<span>${Math.floor(me.ms)}</span></li>` : '');
+    ui.online.textContent = `${online} player${online === 1 ? '' : 's'} in this room · ${bots} wild organisms`;
   }
 
   let lastHud = 0, lastChoiceKey = '';
