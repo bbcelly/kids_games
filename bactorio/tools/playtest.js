@@ -295,6 +295,43 @@ try {
     await sleep(300); await shot('late-game-zoomed-out');
   });
 
+  await check('inspector: choosing a recipe, setting a filter, draining a channel', async () => {
+    const hud = (sel) => page.evaluate((s) => { const n = document.querySelector(s); if (!n) throw new Error('missing ' + s); n.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 })); }, sel);
+    await page.mouse.wheel({ deltaY: -500 });
+    await world((w, app) => { app.showTox = false; });
+    const pos = await world((w) => {
+      const c = w.core;
+      // first free spot for an s x s building, scanning outwards from the Core
+      const spot = (type, s) => { for (let r = 5; r < 10; r++) for (let y = c.y - r; y <= c.y + r; y++) for (let x = c.x - r; x <= c.x + r; x++) if (w.canPlace(type, x, y).ok) { const e = w.build(type, x, y, 0); if (e) return { x: e.x, y: e.y }; } return null; };
+      for (const e of [...w.enemies]) e.hp = 0;
+      w.threat.next = w.tick + 1e7;
+      const rib = [...w.list].find(e => e.type === 'ribosome');
+      return { rib: rib && { x: rib.x, y: rib.y }, fp: spot('filterpilus', 1), tank: spot('tank', 2) };
+    });
+    assert(pos.rib && pos.tank, 'setup failed: ' + JSON.stringify(pos));
+    assert(pos.fp, 'filter pilus not built');
+    await clickTile(pos.rib.x, pos.rib.y);
+    await page.waitForSelector('#inspector [data-act="pick"]');
+    await hud('#inspector [data-act="pick"]');
+    await page.waitForSelector('#inspector [data-act="recipe:enzyme"]');
+    await sleep(350); await shot('recipe-list');
+    await hud('#inspector [data-act="recipe:enzyme"]');
+    assert(await world((w, app) => app.sel.recipe) === 'enzyme', 'recipe not changed');
+    await clickTile(pos.fp.x, pos.fp.y);
+    await page.waitForSelector('#inspector [data-act="filter:iron"]');
+    await hud('#inspector [data-act="filter:iron"]');
+    assert(await world((w, app) => app.sel.filter) === 'iron', 'filter not set');
+    await sleep(300); await shot('filter');
+    await world((w) => { const t = [...w.list].find(e => e.type === 'tank'); t._net.fluid = 'water'; t._net.amt = 300; });
+    await clickTile(pos.tank.x, pos.tank.y);
+    await page.waitForSelector('#inspector [data-act="flush"]');
+    await hud('#inspector [data-act="flush"]');
+    assert(await world((w, app) => app.sel._net.amt) === 0, 'channel not drained');
+    await hud('#inspector [data-act="dismantle"]');
+    assert(await world((w) => w.counts.tank) === 0, 'tank not dismantled');
+    assert(await world((w, app) => app.sel) === null, 'selection should be cleared');
+  });
+
   await check('settings: switching to English changes the interface', async () => {
     await page.keyboard.press('Escape'); await clickM('dlg:settings');
     await page.select('[data-c="lang"]', 'en');
