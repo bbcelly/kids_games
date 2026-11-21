@@ -18,13 +18,39 @@ Cilia, Fast Metabolism), stackable up to 3 levels. You can eat another organism 
   screen lists rooms; "+ New room" opens a fresh one. After joining, the URL becomes `?room=abcd` —
   the **Invite** button copies it, and friends opening it land in the same room.
 
+## Rewards (reasons to come back)
+
+All rewards are **cosmetic** — nothing gives an advantage in PvP.
+
+- **XP & levels:** every life earns XP (mass, organisms eaten, players eaten ×more, stage reached,
+  time survived; lives under 10 s / 15 mass earn nothing). Each level pays DNA; some levels unlock
+  fixed items (level track up to 50).
+- **DNA** (currency) buys colours, patterns, trails, name frames, titles, card backgrounds and lab
+  décor in the **Wardrobe**.
+- **Daily reward:** a 7-day streak (20 → 150 DNA, day 7 adds a random item); one missed day per
+  week is forgiven. Days follow Europe/Prague time.
+- **Daily tasks:** 3 random tasks per day (one swap allowed).
+- **Achievements:** 23 badges, many with exclusive items; up to 3 can be shown on your card.
+- **Collection:** 21 entries (stages, traits, trait masters, special events), each with a real
+  biology fact.
+- **Lab:** save creatures (Colony stage or higher) as specimens that swim in your own decorated
+  aquarium; more places at higher levels.
+- **Profile card:** avatar, title, badges, stats, and your lab — shareable via `?profile=<id>`, and
+  opened by clicking a name on the in-game leaderboard.
+
+**Saving without accounts:** the server creates a profile and the browser keeps a secret token in
+`localStorage`. The profile panel shows a transfer code (`XXXX-XXXX-XXXX`) to continue on another
+device. Profiles are JSON files in `data/profiles/` (`DATA_DIR`), written every 5 s and on shutdown —
+back up that folder. Max 20 new profiles per IP per hour (`NEW_PROFILES_PER_IP_HOUR`); set
+`TRUST_PROXY=1` behind a reverse proxy so the real client IP is used.
+
 ## Run
 
 ```bash
 npm install         # only dependency: ws
 npm start           # PORT=8080 by default
-npm test            # simulation + room-assignment tests
-npm run test:net    # starts its own server, checks rooms end to end
+npm test            # simulation, rooms, progression, profile storage
+npm run test:net    # starts its own servers: rooms end to end, profiles/rewards incl. restart
 node test/load.js 1000 ws://127.0.0.1:8080/ws 20   # load test against a running server
 ```
 
@@ -37,7 +63,7 @@ systemctl status primordial
 journalctl -u primordial -f
 ```
 
-`GET /rooms` lists rooms; `GET /health` returns players, rooms, per-worker tick time and main-thread lag.
+`GET /rooms` lists rooms; `GET /api/profile/<id>` is a public profile (no secrets); `GET /health` returns players, rooms, per-worker tick time and main-thread lag.
 
 Settings (environment variables in `primordial.service`): `PORT` (8080), `WORKERS` (CPU cores − 1),
 `ROOM_SOFT_CAP` (50, auto-join fills to this), `ROOM_HARD_CAP` (60, invite links up to this),
@@ -51,9 +77,15 @@ Settings (environment variables in `primordial.service`): `PORT` (8080), `WORKER
   ~15 snapshots/s, food at 5 Hz). Emits ready-made JSON strings, never touches sockets.
 - `server/room-worker.js` — a worker thread hosting several rooms; one worker per spare CPU core.
 - `server/rooms.js` — pure room directory: auto-assignment, invite links, caps, closing idle rooms.
-- `server/server.js` — main thread: HTTP (`public/`, `/rooms`, `/health`), WebSockets at `/ws`,
+- `server/progression.js` — pure reward rules: XP/levels, daily streak, tasks, achievements,
+  collection, shop/equip validation, lab. `public/catalog.js` holds every item/achievement/task and
+  is shared by server and browser.
+- `server/profiles.js` — profile storage (one JSON file each, atomic writes), tokens, transfer codes.
+- `server/server.js` — main thread: HTTP (`public/`, `/rooms`, `/api/profile`, `/health`), WebSockets at `/ws`,
   routes players to rooms. Player input is batched per worker (steering coalesced) and validated;
   the client is never trusted. Snapshots are skipped for clients that fall behind.
+- `public/draw.js` — organism drawing (shared by game, avatars, aquarium), patterns, colour modes, trails.
+- `public/meta.js` — out-of-game screens: level bar, profile, lab, collection, daily/achievements, wardrobe.
 - `public/` — single canvas client, no build step. Procedurally drawn organisms per stage/trait,
   client-side smoothing, HUD, leaderboard, minimap, kill feed, mobile touch support,
   room list / invite links.

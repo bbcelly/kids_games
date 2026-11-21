@@ -141,6 +141,7 @@ class Game {
       view: { hw: 900, hh: 600 },
       dashT: 0, dashCd: 0, poisonT: 0,
       alive: false, kills: 0, maxMass: START_MASS, bornAt: 0, maxStage: 0,
+      stats: null, cos: null, pid: null,
       ai: isBot ? { target: null, think: 0, wander: this.rand() * Math.PI * 2 } : null,
     };
     this.orgs.set(id, o);
@@ -155,6 +156,7 @@ class Game {
     o.traits = emptyTraits(); o.pendingChoices = [];
     o.dashT = 0; o.dashCd = 0; o.poisonT = 0;
     o.alive = true; o.kills = 0; o.maxMass = START_MASS; o.bornAt = this.tick;
+    o.stats = { food: 0, playerKills: 0, killsBig: 0, killedApex: 0, dashes: 0, poisoned: 0 };
     o.input = { dx: 0, dy: 0 };
   }
 
@@ -178,6 +180,7 @@ class Game {
     if (!o.alive || o.dashCd > 0 || o.mass < START_MASS + 2) return false;
     o.dashT = 0.35;
     o.dashCd = 3 * (1 - 0.25 * o.traits.metabolism);
+    o.stats.dashes++;
     const cost = Math.max(1, o.mass * 0.04);
     o.mass = Math.max(START_MASS, o.mass - cost);
     return true;
@@ -307,6 +310,7 @@ class Game {
         if (d < reach) {
           this.removeFood(f);
           o.mass += f.m;
+          o.stats.food++;
         }
       }
     }
@@ -367,7 +371,10 @@ class Game {
     const toxic = prey.traits.spikes;
     const share = toxic ? Math.max(0.35, 0.8 - 0.15 * toxic) : 0.8;
     eater.mass += prey.mass * share;
-    if (toxic) eater.poisonT = 1 + toxic;
+    if (toxic) { eater.poisonT = 1 + toxic; eater.stats.poisoned++; }
+    if (!prey.isBot) eater.stats.playerKills++;
+    if (prey.stage >= 3) eater.stats.killsBig++;
+    if (prey.stage >= 5) eater.stats.killedApex++;
     // scatter a little of the prey back into the soup
     const bits = Math.min(14, (prey.mass * 0.1) | 0);
     for (let k = 0; k < bits; k++) {
@@ -383,10 +390,18 @@ class Game {
     });
   }
 
+  // Summary of the current life, for rewards (sent when it ends).
+  lifeSummary(o) {
+    return {
+      maxMass: Math.round(o.maxMass), maxStage: o.maxStage, secs: Math.round((this.tick - o.bornAt) / TICK_HZ),
+      kills: o.kills, ...o.stats, traits: { ...o.traits }, hue: o.hue, name: o.name,
+    };
+  }
+
   leaderboard(n = 10) {
     return [...this.orgs.values()].filter(o => o.alive)
       .sort((a, b) => b.mass - a.mass).slice(0, n)
-      .map(o => ({ id: o.id, name: o.name, hue: o.hue, mass: Math.round(o.mass), x: Math.round(o.x), y: Math.round(o.y), stage: o.stage }));
+      .map(o => ({ id: o.id, name: o.name, hue: o.hue, pid: o.pid || undefined, mass: Math.round(o.mass), x: Math.round(o.x), y: Math.round(o.y), stage: o.stage }));
   }
 }
 

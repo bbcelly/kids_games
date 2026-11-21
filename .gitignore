@@ -86,3 +86,6 @@ tmp/
 # ============================================================================
 coverage/
 .nyc_output/
+
+# Primordial player profiles (runtime data, never commit)
+cells/data/

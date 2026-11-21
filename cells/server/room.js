@@ -3,7 +3,9 @@
 // It never touches sockets; it emits ready-made JSON strings through `out`:
 //   out.send(cid, str)      -> one client
 //   out.broadcast(str)      -> every client in this room
+//   out.session(cid, life)  -> a player's life ended (for rewards; handled by the main thread)
 const { Game, WORLD, TICK_HZ, packTraits } = require('./game');
+const CATALOG = require('../public/catalog');
 
 class Room {
   constructor(id, name, out, opts = {}) {
@@ -20,7 +22,8 @@ class Room {
   send(c, msg) { this.out.send(c.cid, JSON.stringify(msg)); }
   broadcast(msg) { this.out.broadcast(JSON.stringify(msg)); }
 
-  join(cid, name) {
+  // look: validated cosmetics {color, pattern, trail, frame, title} or null; pid: public profile id
+  join(cid, name, look, pid) {
     let c = this.clients.get(cid);
     if (!c) {
       c = { cid, org: null, knownMeta: new Set() };
@@ -33,6 +36,10 @@ class Room {
       c.org.name = name;
       this.game.respawn(c.org);
     }
+    c.org.pid = pid || null;
+    c.org.cos = look ? [look.color, look.pattern, look.trail, look.frame, look.title] : null;
+    const col = look && CATALOG.ITEM[look.color];
+    if (col && col.hue != null) c.org.hue = col.hue;
     // name may have changed: make everyone (including us) refetch it
     for (const other of this.clients.values()) other.knownMeta.delete(c.org.id);
     this.send(c, { t: 'spawned', id: c.org.id });
@@ -55,6 +62,7 @@ class Room {
     const c = this.clients.get(cid);
     if (!c) return;
     this.clients.delete(cid);
+    if (c.org && c.org.alive) this.out.session(cid, this.game.lifeSummary(c.org));
     if (c.org) {
       this.game.removeOrganism(c.org.id);
       this.broadcast({ t: 'gone', id: c.org.id });
@@ -71,6 +79,7 @@ class Room {
         for (const c of this.clients.values()) {
           if (c.org && c.org.id === ev.prey) {
             const o = c.org;
+            this.out.session(c.cid, game.lifeSummary(o));
             this.send(c, {
               t: 'dead', by: ev.eaterName, mass: Math.round(o.maxMass), kills: o.kills,
               stage: o.maxStage, secs: Math.round((game.tick - o.bornAt) / TICK_HZ),
@@ -112,7 +121,7 @@ class Room {
       ]);
       if (!c.knownMeta.has(org.id)) {
         c.knownMeta.add(org.id);
-        meta.push([org.id, org.name, org.hue, org.isBot ? 1 : 0]);
+        meta.push([org.id, org.name, org.hue, org.isBot ? 1 : 0, org.cos || 0, org.pid || 0]);
       }
     }
     const msg = { t: 's', k: game.tick, o };

@@ -1,6 +1,6 @@
 'use strict';
 // Load test: many headless players against a running server.
-//   node test/load.js [count=1000] [ws://host:port/ws] [seconds=20]
+//   node test/load.js [count=1000] [ws://host:port/ws] [seconds=20] [--profiles]
 // Each bot joins 'auto', steers at 20 Hz like the real client, dashes now and then,
 // and measures snapshot rate and ping. Snapshots are counted, not parsed, to keep the
 // generator itself cheap.
@@ -8,6 +8,7 @@ const WebSocket = require('ws');
 const N = parseInt(process.argv[2] || '1000', 10);
 const URL = process.argv[3] || 'ws://127.0.0.1:8080/ws';
 const SECS = parseInt(process.argv[4] || '20', 10);
+const PROFILES = process.argv.includes('--profiles'); // needs NEW_PROFILES_PER_IP_HOUR raised on the server
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 const bots = [];
@@ -16,6 +17,7 @@ let failed = 0, closed = 0;
 function bot(i) {
   const b = { snaps: 0, rooms: null, pings: [], ws: new WebSocket(URL, { perMessageDeflate: false }) };
   b.ws.on('open', () => {
+    if (PROFILES) b.ws.send(JSON.stringify({ t: 'hello' })); // creates a profile per bot
     b.ws.send(JSON.stringify({ t: 'join', name: 'Load' + i, room: 'auto' }));
     let a = Math.random() * 6.28;
     b.iv = setInterval(() => {

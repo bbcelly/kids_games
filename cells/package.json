@@ -5,8 +5,8 @@
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",
-    "test": "node test/sim.test.js && node test/rooms.test.js",
-    "test:net": "node test/net.test.js"
+    "test": "node test/sim.test.js && node test/rooms.test.js && node test/progression.test.js && node test/profiles.test.js",
+    "test:net": "node test/net.test.js && node test/profile.net.test.js"
   },
   "author": "",
   "license": "ISC",
