@@ -52,7 +52,7 @@ export function generateFree(w, h, o = {}) {
   for (let i = 0; i < Math.round(W * H / 900); i++) { const [x, y] = far(16, reach); h.water(x, y, rng.range(2.5, 6)); }
   for (let i = 0; i < Math.round(W * H / 700); i++) { const [x, y] = far(15, reach); h.rock(x, y, rng.range(1.5, 4)); }
   for (let i = 0; i < Math.round(W * H / 1500); i++) { const [x, y] = far(8, reach); h.light(x, y, rng.range(5, 9)); }
-  const near = (res, dist, r, amt) => { const a = rng.next() * Math.PI * 2; h.clear(cx + Math.cos(a) * dist, cy + Math.sin(a) * dist, r); h.deposit(res, Math.round(cx + Math.cos(a) * dist), Math.round(cy + Math.sin(a) * dist), r, amt); };
+  h.clear(cx, cy, 12);   // the starting biofilm is always open ground
   // guaranteed starting deposits around the Core
   const order = w.reg.sorted('resources').filter(r => r.item && r.free !== false);
   const base = rng.next() * Math.PI * 2;
@@ -79,5 +79,4 @@ export function generateFree(w, h, o = {}) {
       h.nest(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r));
     }
   }
-  void near;
 }

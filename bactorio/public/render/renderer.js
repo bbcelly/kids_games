@@ -9,7 +9,7 @@ export class Renderer {
   constructor(canvas, app) {
     this.cv = canvas; this.ctx = canvas.getContext('2d'); this.app = app;
     this.cam = { x: 0, y: 0, px: 32 };
-    this.fx = []; this.resSprites = new Map();
+    this.fx = []; this.resSprites = new Map(); this.entSprites = new Map();
     this.terrainMask = null; this.filmMask = null; this.mapRev = -1; this.filmRev = -1;
     this.dpr = 1; this.W = 0; this.H = 0;
   }
@@ -85,6 +85,22 @@ export class Renderer {
     g.fillStyle = '#7fe0a8';
     for (let y = 0; y < w.h; y++) for (let x = 0; x < w.w; x++) if (w.film[y * w.w + x]) g.fillRect(x * R, y * R, R, R);
     this.filmMask = this.soften(c, R * 0.45); this.filmRev = w.filmRev;
+  }
+
+  // Pre-rendered building sprites. Pathways always use them (4 animation frames); every other
+  // building uses one when zoomed far out, where details would not be visible anyway.
+  entSprite(e, ipx, frame) {
+    const p = e._p, din = e._in ?? e.dir;
+    const key = `${e.type}|${e.dir}|${din}|${e.mode || ''}|${ipx}|${frame}`;
+    let c = this.entSprites.get(key);
+    if (c) return c;
+    if (this.entSprites.size > 900) this.entSprites.clear();
+    const S = p.size[0] * ipx;
+    c = document.createElement('canvas'); c.width = S; c.height = S;
+    const proxy = { id: 1, type: e.type, x: 0, y: 0, dir: e.dir, _in: din, mode: e.mode, hp: p.hp, _p: p, items: [], out: {}, inp: {}, inv: {}, n: 0, ammo: 1, _icon: true };
+    drawEntity(c.getContext('2d'), null, proxy, ipx, p.kind === 'belt' ? frame / (4 * (p.speed || 1)) : 0);
+    this.entSprites.set(key, c);
+    return c;
   }
 
   resSprite(idx, px) {
@@ -166,7 +182,7 @@ export class Renderer {
     }
 
     // buildings
-    const belts = [], pili = [], bars = [];
+    const belts = [], pili = [], bars = [], far = px < 20;
     const seen = this._seen || (this._seen = new Set());
     seen.clear();
     for (let y = Math.max(0, y0 - 3); y <= y1; y++) for (let x = Math.max(0, x0 - 3); x <= x1; x++) {
@@ -179,7 +195,10 @@ export class Renderer {
       ctx.save();
       ctx.translate(ox + e.x * px, oy + e.y * px);
       if (dormant) ctx.globalAlpha = 0.45;
-      drawEntity(ctx, w, e, px, time);
+      if (p.draw) drawEntity(ctx, w, e, px, time);
+      else if (p.kind === 'belt') ctx.drawImage(this.entSprite(e, ipx, far ? 0 : Math.floor(time * p.speed * 4) & 3), 0, 0, px, px);
+      else if (far) ctx.drawImage(this.entSprite(e, ipx, 0), 0, 0, p.size[0] * px, p.size[0] * px);
+      else drawEntity(ctx, w, e, px, time);
       if (sick) { const S = p.size[0] * px; ctx.strokeStyle = `rgba(110,190,255,${0.6 + 0.4 * Math.sin(time * 10)})`; ctx.lineWidth = 3; ctx.strokeRect(2, 2, S - 4, S - 4); }
       ctx.restore();
       if (p.kind === 'belt') belts.push(e); else if (p.kind === 'pilus') pili.push(e);
@@ -206,7 +225,7 @@ export class Renderer {
         }
       }
     }
-    for (const e of pili) { ctx.save(); ctx.translate(ox + e.x * px, oy + e.y * px); drawPilusArm(ctx, w, e, px, time); ctx.restore(); }
+    if (!far) for (const e of pili) { ctx.save(); ctx.translate(ox + e.x * px, oy + e.y * px); drawPilusArm(ctx, w, e, px, time); ctx.restore(); }
 
     // immune cells
     for (const u of w.enemies) {

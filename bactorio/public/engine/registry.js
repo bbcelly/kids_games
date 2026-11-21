@@ -1,6 +1,13 @@
 // Registry of prototypes. Everything the game knows (items, recipes, buildings, mutations,
 // enemies, missions, texts) lives here and is put here through the same API that mods use.
-import { KINDS } from '../sim/kinds.js';
+import { KINDS, setRecipe } from '../sim/kinds.js';
+import { give, wants, take, eject, outTile } from '../sim/belts.js';
+import { request } from '../sim/power.js';
+import { fluidAvail, fluidDraw, fluidRoom, fluidPush } from '../sim/fluids.js';
+import { DX, DY } from '../sim/world.js';
+
+// Building blocks for custom kinds, handed to mods as api.sim
+const SIM = { give, wants, take, eject, outTile, request, fluidAvail, fluidDraw, fluidRoom, fluidPush, setRecipe, DX, DY };
 
 export const TYPES = ['items', 'fluids', 'resources', 'recipes', 'entities', 'techs', 'enemies', 'missions'];
 const SINGULAR = { item: 'items', fluid: 'fluids', resource: 'resources', recipe: 'recipes', entity: 'entities', tech: 'techs', enemy: 'enemies', mission: 'missions' };
@@ -121,6 +128,9 @@ export class Registry {
         if (o.item) item(o.item, `${w} objective ${o.id}`);
         if (o.entity && !this.entities[o.entity]) E.push(`${w} objective ${o.id}: unknown entity "${o.entity}"`);
         if (o.tech && !this.techs[o.tech]) E.push(`${w} objective ${o.id}: unknown tech "${o.tech}"`);
+        if (!o.id) E.push(`${w}: every objective needs an id`);
+        if (o.type === 'custom' && typeof o.check !== 'function') E.push(`${w} objective ${o.id}: custom objectives need check(world)`);
+        else if (!['deliver', 'produce', 'build', 'research', 'film', 'power', 'survive', 'kill', 'launch', 'custom'].includes(o.type)) E.push(`${w} objective ${o.id}: unknown type "${o.type}"`);
       }
     }
     return E;
@@ -145,6 +155,7 @@ export function makeApi(reg, modId) {
   const api = {
     modId,
     registry: reg,
+    sim: SIM,
     get(type, id) { return reg[SINGULAR[type] || type]?.[id]; },
     all(type) { return reg.sorted(SINGULAR[type] || type); },
     modify(type, id, patch) {

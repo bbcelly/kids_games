@@ -23,7 +23,7 @@ small { color: var(--dim); }
 .bar { height: 8px; background: #0a1c17; border-radius: 4px; overflow: hidden; margin: 4px 0; }
 .bar i { display: block; height: 100%; background: linear-gradient(90deg, #4fd1a1, #b6f5dc); }
 .bar.hp i { background: linear-gradient(90deg, #ff9f6b, #7bed9f); }
-.warn { color: #ffd166; } .warn.small { font-size: 12px; }
+.warn { color: #ffd166; } .warn.small { font-size: 12px; margin-top: 10px; }
 .note { color: var(--good); }
 .bonus { color: var(--accent2); } .bonus.gone { opacity: 0.4; text-decoration: line-through; }
 
@@ -163,6 +163,7 @@ input[type=text], input[type=number], select { background: #0a1c17; border: 1px 
 .mcard .sub { color: var(--dim); margin-bottom: 20px; }
 .mcard.title .mbtns { margin-bottom: 14px; }
 .missions { display: flex; flex-direction: column; gap: 6px; }
+.sep { margin: 14px 0 6px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; font-size: 12px; }
 .mis { display: flex; align-items: center; gap: 12px; text-align: left; padding: 9px 12px; }
 .mis small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mis .no { width: 32px; height: 32px; border-radius: 50%; background: #0a1c17; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-weight: 700; flex: none; }

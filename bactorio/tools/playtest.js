@@ -4,7 +4,8 @@
 // Exits non-zero if a step fails or the page logs an error. Screenshots go to test/shots/.
 import puppeteer from 'puppeteer-core';
 import { spawn } from 'node:child_process';
-import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync, existsSync, cpSync } from 'node:fs';
+import { deflateRawSync } from 'node:zlib';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -14,6 +15,26 @@ const CHROME = process.env.CHROME || ['/usr/bin/chromium', '/usr/bin/chromium-br
 const PORT = 8000 + Math.floor(Math.random() * 900) + 90;
 const MODS = path.join(SHOTS, 'mods-for-test');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// a small .zip writer (deflate), to test uploading a mod the way a player would
+function zip(files) {
+  const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const crc32 = (buf) => { let c = 0xffffffff; for (const b of buf) c = crcTable[(c ^ b) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const locals = [], central = [];
+  let offset = 0;
+  for (const [name, text] of Object.entries(files)) {
+    const data = Buffer.from(text), comp = deflateRawSync(data), nameB = Buffer.from(name), crc = crc32(data);
+    const h = Buffer.alloc(30);
+    h.writeUInt32LE(0x04034b50, 0); h.writeUInt16LE(20, 4); h.writeUInt16LE(8, 8); h.writeUInt32LE(crc, 14); h.writeUInt32LE(comp.length, 18); h.writeUInt32LE(data.length, 22); h.writeUInt16LE(nameB.length, 26);
+    const c = Buffer.alloc(46);
+    c.writeUInt32LE(0x02014b50, 0); c.writeUInt16LE(20, 4); c.writeUInt16LE(20, 6); c.writeUInt16LE(8, 10); c.writeUInt32LE(crc, 16); c.writeUInt32LE(comp.length, 20); c.writeUInt32LE(data.length, 24); c.writeUInt16LE(nameB.length, 28); c.writeUInt32LE(offset, 42);
+    locals.push(h, nameB, comp); central.push(c, nameB);
+    offset += 30 + nameB.length + comp.length;
+  }
+  const cd = Buffer.concat(central), end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(central.length / 2, 8); end.writeUInt16LE(central.length / 2, 10); end.writeUInt32LE(cd.length, 12); end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, cd, end]);
+}
 
 if (!CHROME) { console.error('No Chromium found; set CHROME=/path/to/browser'); process.exit(2); }
 rmSync(SHOTS, { recursive: true, force: true });
@@ -39,7 +60,13 @@ async function check(name, fn) {
 }
 const assert = (c, msg) => { if (!c) throw new Error(msg || 'assertion failed'); };
 const ev = (fn, ...a) => page.evaluate(fn, ...a);
-const clickM = async (act) => { await page.waitForSelector(`[data-m="${act}"]`, { timeout: 5000 }); await page.click(`[data-m="${act}"]`); };
+// menus re-render asynchronously, so a button can be replaced between "found" and "clicked": retry
+const clickM = async (act) => {
+  for (let i = 0; ; i++) {
+    try { await page.waitForSelector(`[data-m="${act}"]`, { timeout: 5000 }); await page.click(`[data-m="${act}"]`); await sleep(60); return; }
+    catch (err) { if (i >= 3) throw err; await sleep(150); }
+  }
+};
 const world = (fn, ...a) => page.evaluate(new Function('...a', `const app = window.__biofilm, w = app.world; return (${fn.toString()})(w, app, ...a);`), ...a);
 // screen position of the middle of a tile
 const at = (x, y) => world((w, app, x, y) => { const [sx, sy] = app.renderer.toScreen(x + 0.5, y + 0.5); return { x: sx, y: sy }; }, x, y);
@@ -277,6 +304,96 @@ try {
     await page.select('[data-c="lang"]', 'cs');
     await clickM('dlg:menu'); await clickM('quit');
     await page.waitForSelector('[data-m="go:mods"]');
+  });
+
+  // ---- mods ---------------------------------------------------------------------------
+  const reload = async () => { await page.reload({ waitUntil: 'networkidle0' }); await page.waitForSelector('#menu .mcard'); };
+  const regHas = (kind, id) => ev((k, i) => !!window.__biofilm.reg[k][i], kind, id);
+  const upload = async (file) => { const input = await page.$('input[data-f="mod"]'); await input.uploadFile(file); await page.waitForSelector('.note'); return ev(() => document.querySelector('.note').textContent); };
+
+  await check('a mod in the server mods/ folder is offered and loaded', async () => {
+    cpSync(path.join(ROOT, 'mods', 'example-kvasinky'), path.join(MODS, 'example-kvasinky'), { recursive: true });
+    await reload();
+    assert(!(await regHas('items', 'starch')), 'the example mod must start switched off');
+    await clickM('go:mods');
+    await page.waitForSelector('input[data-mod="kvasinky"]');
+    await page.click('input[data-mod="kvasinky"]');
+    await reload();
+    assert(await regHas('items', 'starch') && await regHas('missions', 'brewery'), 'mod content missing');
+    await clickM('go:mods');
+    await page.waitForSelector('.save.mod');
+    const rows = await ev(() => [...document.querySelectorAll('.save.mod')].map(r => r.textContent.replace(/\s+/g, ' ').trim()));
+    assert(rows.length === 2 && rows[1].includes('Kvasinky') && rows[1].includes('složka mods/'), JSON.stringify(rows));
+    await shot('mods');
+    await clickM('go:main'); await clickM('go:campaign');
+    await page.waitForSelector('[data-m="mission:brewery"]');
+    await shot('campaign-with-mod');
+    await clickM('mission:brewery'); await clickM('resume');
+    await world((w) => { const c = w.core; w.build('yeast', c.x + 5, c.y, 0); w.build('composter', c.x + 5, c.y + 3, 0); });
+    await pick('yeast');
+    await sleep(300); await shot('mod-mission');
+    assert(await world((w) => w.counts.yeast) === 1);
+    // the inspector shows the extra line the mod asked for
+    await page.keyboard.press('Escape');
+    const c = await world((w) => ({ x: w.core.x + 5, y: w.core.y + 3 }));
+    await clickTile(c.x, c.y);
+    await page.waitForSelector('#inspector:not(.hidden)');
+    assert((await ev(() => document.getElementById('inspector').textContent)).includes('/ 12'), 'mod inspector line missing');
+    await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await clickM('quit');
+    await page.waitForSelector('[data-m="go:mods"]');
+  });
+
+  await check('switching a mod off removes its content after reload', async () => {
+    await clickM('go:mods');
+    await page.click('input[data-mod="kvasinky"]');
+    await reload();
+    assert(!(await regHas('items', 'starch')), 'mod still loaded');
+    await clickM('go:mods'); await page.click('input[data-mod="kvasinky"]'); await reload();
+    assert(await regHas('items', 'starch'), 'mod did not come back');
+  });
+
+  await check('uploading a mod as .zip, as one .js file, and removing it', async () => {
+    const main = `export function data(api) {\n  api.item('zipgoo', { icon: { shape: 'orb', color: '#ff00aa' } });\n  api.recipe('zipgoo', { category: 'ferment', time: 1, in: { glucose: 1 }, out: { zipgoo: 1 }, enabled: true });\n  api.locale('cs', { 'item.zipgoo': 'Zip sliz' }); api.locale('en', { 'item.zipgoo': 'Zip goo' });\n}`;
+    const zf = path.join(SHOTS, 'zipmod.zip'), jf = path.join(SHOTS, 'single.js');
+    writeFileSync(zf, zip({ 'zipmod/mod.json': JSON.stringify({ id: 'zipmod', name: 'Zip mod', version: '0.1.0' }), 'zipmod/main.js': main, 'zipmod/readme.txt': 'hello' }));
+    writeFileSync(jf, `export const manifest = { id: 'single', name: 'Single file', version: '2.0.0' };\nexport function data(api) { api.modify('item', 'glucose', { fuel: 61 }); }`);
+    await clickM('go:mods');
+    let note = await upload(zf);
+    assert(note.includes('Zip mod'), note);
+    note = await upload(jf);
+    assert(note.includes('Single file'), note);
+    await reload();
+    assert(await regHas('items', 'zipgoo'), 'zip mod not loaded');
+    assert(await ev(() => window.__biofilm.reg.items.glucose.fuel) === 61, 'single-file mod not loaded');
+    assert((await ev(() => window.__biofilm.reg.mods.map(m => m.id).join())) === 'base,kvasinky,single,zipmod');
+    await clickM('go:mods');
+    await page.waitForSelector('[data-m="rmmod:zipmod"]');
+    await shot('mods-uploaded');
+    await clickM('rmmod:zipmod'); await clickM('rmmod:single');
+    await reload();
+    assert(!(await regHas('items', 'zipgoo')), 'removed mod still loaded');
+  });
+
+  await check('a broken mod is refused or reported, and the game still starts', async () => {
+    const syntax = path.join(SHOTS, 'syntax.js'), thrower = path.join(SHOTS, 'thrower.js');
+    writeFileSync(syntax, `export const manifest = { id: 'syntax', name: 'Syntax', version: '1' };\nexport function data(api) { this is not javascript }`);
+    writeFileSync(thrower, `export const manifest = { id: 'thrower', name: 'Thrower', version: '1' };\nexport function data(api) { api.item('partial', { icon: {} }); throw new Error('mod exploded'); }`);
+    await clickM('go:mods');
+    let note = await upload(syntax);
+    assert(note.includes('nepodařilo'), note);
+    note = await upload(thrower);
+    assert(note.includes('Thrower'), note);
+    problems.length = 0; // the refused upload above logs a syntax error on purpose
+    await reload();
+    assert(!(await regHas('items', 'partial')), 'half-loaded content left behind');
+    const errs = await ev(() => window.__biofilm.reg.errors.map(e => e.mod + ':' + e.message));
+    assert(errs.length === 1 && errs[0].includes('mod exploded'), JSON.stringify(errs));
+    assert(await ev(() => document.querySelector('#menu .warn')?.textContent.includes('1')), 'no warning on the main menu');
+    await shot('menu-mod-error');
+    await clickM('go:mods'); await page.waitForSelector('.errs li'); await shot('mods-error');
+    await clickM('rmmod:thrower');
+    await clickM('go:main'); await clickM('go:campaign'); await clickM('mission:m1'); await clickM('resume');
+    assert(await world((w) => w.missionId) === 'm1', 'game did not start');
   });
 
   if (process.env.EXTRA) await (await import(process.env.EXTRA)).default({ page, check, assert, shot, world, ev, clickM, sleep, MODS, ROOT, PORT });

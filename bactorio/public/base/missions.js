@@ -126,7 +126,7 @@ export function missions(api) {
       h.light(32, 36, 12);
       h.nest(68, 33); h.nest(64, 12);
     },
-    start: { items: { glucose: 100, protein: 80, fiber: 80, iron: 60, enzyme: 40 }, techs: [...TIER0, ...TIER1] },
+    start: { items: { glucose: 100, protein: 80, fiber: 80, iron: 60, enzyme: 40, bacteriocin: 30 }, techs: [...TIER0, ...TIER1] },
     techs: [...TIER0, ...TIER1, 'toxins2', 'slime2', 'flagella', 'sorting', 'membranes'],
     threat: { first: 170, interval: 80, base: 2, growth: 1.2, max: 14, types: [{ id: 'neutrophil', from: 0 }, { id: 'macrophage', from: 4 }] },
     objectives: [

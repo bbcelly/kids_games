@@ -242,6 +242,11 @@ const DRAW = {
   pilus(ctx, w, e, p, S) {
     ctx.beginPath(); ctx.arc(S / 2, S / 2, S * 0.3, 0, TAU);
     ctx.fillStyle = shade(p.color, -0.3); ctx.fill(); ctx.lineWidth = Math.max(1.5, S * 0.05); ctx.strokeStyle = shade(p.color, -0.65); ctx.stroke();
+    if (e._icon) {   // in menus: show the arm, pointing the way it carries
+      ctx.strokeStyle = shade(p.color, 0.2); ctx.lineWidth = Math.max(2, S * 0.1); ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(S / 2, S / 2); ctx.lineTo(S * (p.reach > 1 ? 0.98 : 0.9), S / 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(S * (p.reach > 1 ? 0.98 : 0.9), S / 2, Math.max(2, S * 0.09), 0, TAU); ctx.fillStyle = shade(p.color, 0.5); ctx.fill();
+    }
     if (p.filter && e.filter && w) { const sp = itemSprite(w.reg, e.filter, Math.max(8, Math.round(S * 0.36))); ctx.drawImage(sp, S / 2 - sp.width / 2, S / 2 - sp.height / 2); }
   },
   miner(ctx, w, e, p, S, t) {

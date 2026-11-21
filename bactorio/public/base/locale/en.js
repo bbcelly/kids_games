@@ -226,5 +226,6 @@ export default {
   'ui.tool.none': 'Click a building for details, a deposit to gather.', 'ui.hotkey': 'Key {k}',
   'ui.fx.wave': '{n} immune cells are coming!', 'ui.fx.objective': 'Task done', 'ui.fx.lowPower': 'Low ATP! Build a generator or photosynthetic cells.',
   'ui.perSecond': '/s', 'ui.seconds': '{n} s', 'ui.loading': 'Loading…', 'ui.version': 'version {v}',
+  'ui.modMissions': 'Missions from mods',
   'ui.launched': 'Spores released', 'ui.film': 'Biofilm', 'ui.yes': 'Yes', 'ui.no': 'No', 'ui.ok': 'OK',
 };

@@ -1,0 +1,10 @@
+{
+  "id": "kvasinky",
+  "name": "Kvasinky",
+  "version": "1.0.0",
+  "description": "Ukázkový mod: škrob, etanol, kvasinková buňka, kompostér, nová mutace a mise Pivovar.",
+  "dependencies": [
+    "base"
+  ],
+  "enabledByDefault": false
+}

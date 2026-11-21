@@ -226,5 +226,6 @@ export default {
   'ui.tool.none': 'Klikni na stavbu pro detail, na ložisko pro sběr.', 'ui.hotkey': 'Klávesa {k}',
   'ui.fx.wave': 'Blíží se {n} imunitních buněk!', 'ui.fx.objective': 'Úkol splněn', 'ui.fx.lowPower': 'Málo ATP! Postav generátor nebo fotosyntetické buňky.',
   'ui.perSecond': '/s', 'ui.seconds': '{n} s', 'ui.loading': 'Načítám…', 'ui.version': 'verze {v}',
+  'ui.modMissions': 'Mise z modů',
   'ui.launched': 'Vypuštěné spóry', 'ui.film': 'Biofilm', 'ui.yes': 'Ano', 'ui.no': 'Ne', 'ui.ok': 'OK',
 };

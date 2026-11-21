@@ -12,7 +12,8 @@ async function importCode(code) {
 // Returns { mods: [{manifest, module, source}], listing: [...], errors: [...] }
 export async function gatherMods(settings) {
   const mods = [], listing = [], errors = [];
-  const enabled = (id) => settings.mods?.[id] !== false;
+  // on unless the player switched it off; a mod can ask to start switched off ("enabledByDefault": false)
+  const enabled = (id, man) => settings.mods?.[id] ?? (man?.enabledByDefault !== false);
   const seen = new Set(['base']);
   let server = [];
   try {
@@ -24,7 +25,7 @@ export async function gatherMods(settings) {
     if (bad) { errors.push({ mod: s.dir, stage: 'manifest', message: bad }); continue; }
     if (seen.has(man.id)) { errors.push({ mod: man.id, stage: 'manifest', message: 'duplicate mod id' }); continue; }
     seen.add(man.id);
-    const item = { id: man.id, name: man.name, version: man.version, description: man.description || '', source: 'server', enabled: enabled(man.id) };
+    const item = { id: man.id, name: man.name, version: man.version, description: man.description || '', source: 'server', enabled: enabled(man.id, man) };
     listing.push(item);
     if (!item.enabled) continue;
     try {
@@ -38,7 +39,7 @@ export async function gatherMods(settings) {
     const man = rec.manifest;
     if (seen.has(man.id)) { errors.push({ mod: man.id, stage: 'manifest', message: 'duplicate mod id (also on the server)' }); continue; }
     seen.add(man.id);
-    const item = { id: man.id, name: man.name, version: man.version, description: man.description || '', source: 'local', enabled: enabled(man.id) };
+    const item = { id: man.id, name: man.name, version: man.version, description: man.description || '', source: 'local', enabled: enabled(man.id, man) };
     listing.push(item);
     if (!item.enabled) continue;
     try { mods.push({ manifest: man, module: await importCode(rec.code), source: 'local' }); }

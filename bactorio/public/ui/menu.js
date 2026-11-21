@@ -53,7 +53,12 @@ export function initMenu(app) {
           <span class="no">${p?.done ? '✔' : m.campaign}</span><span class="grow"><b>${esc(t(`mission.${m.id}.name`))}</b><small>${esc(open ? t(`mission.${m.id}.intro`) : t('ui.locked'))}</small></span>
           <span class="star ${p?.bonus ? 'got' : ''}" title="${esc(m.bonus?.type === 'time' ? t('ui.bonus', { n: m.bonus.minutes }) : '')}">${m.bonus ? '★' : ''}</span></button>`;
       }).join('');
-      return `<div class="mcard wide"><h2>${esc(t('ui.campaign'))}</h2><div class="missions">${cards}</div>${peacefulBox()}<div class="mfoot">${back()}</div></div>`;
+      // missions added by mods that are not part of the numbered campaign
+      const extra = app.reg.sorted('missions').filter(m => !m.campaign && !m.free).map(m => `<button class="mis ${prog[m.id]?.done ? 'done' : ''}" data-m="mission:${m.id}">
+          <span class="no">${prog[m.id]?.done ? '✔' : '+'}</span><span class="grow"><b>${esc(t(`mission.${m.id}.name`))}</b><small>${esc(t(`mission.${m.id}.intro`))}</small></span>
+          <span class="star ${prog[m.id]?.bonus ? 'got' : ''}">${m.bonus ? '★' : ''}</span></button>`).join('');
+      return `<div class="mcard wide"><h2>${esc(t('ui.campaign'))}</h2><div class="missions">${cards}</div>
+        ${extra ? `<h4 class="sep">${esc(t('ui.modMissions'))}</h4><div class="missions">${extra}</div>` : ''}${peacefulBox()}<div class="mfoot">${back()}</div></div>`;
     }
     if (screen === 'free') {
       return `<div class="mcard"><h2>${esc(t('ui.freeplay'))}</h2><p>${esc(t('mission.free.intro'))}</p><div class="form">
@@ -195,7 +200,7 @@ export function initMenu(app) {
     dialog,
     recordWin(w, bonus) {
       const m = w.mission();
-      if (!m.campaign) return;
+      if (m.free) return;
       const c = loadCampaign(), old = c[m.id] || {};
       c[m.id] = { done: true, bonus: old.bonus || bonus, time: Math.min(old.time || Infinity, w.wonTick) };
       saveCampaign(c);

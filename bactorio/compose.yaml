@@ -1,0 +1,21 @@
+# Biofilm — docker compose stack (works as a Komodo "Stack": run directory "bactorio", file "compose.yaml").
+# All settings are optional; put overrides in a .env file or Komodo's Environment section.
+services:
+  biofilm:
+    build: .
+    pull_policy: build       # built from this repo, never pulled from a registry (Komodo runs "compose pull")
+    container_name: biofilm
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${BIOFILM_PORT:-8081}:8081"
+    environment:
+      PORT: 8081
+      MODS_DIR: /mods
+      # owner of the files in the mods directory on the host (the server runs as this user, not root)
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+    volumes:
+      # Mods: one folder per mod (mod.json + main.js). Drop a folder in, reload the game page.
+      # Saved games and settings live in each player's browser, so there is nothing else to back up.
+      - ${BIOFILM_MODS_DIR:-/srv/biofilm/mods}:/mods
