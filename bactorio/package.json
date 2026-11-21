@@ -1,0 +1,14 @@
+{
+  "name": "biofilm",
+  "version": "1.0.0",
+  "description": "Biofilm — automation game about a bacterial colony, with a campaign and mod support",
+  "type": "module",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "test": "node test/run.js",
+    "test:browser": "node tools/playtest.js"
+  },
+  "license": "ISC",
+  "private": true
+}
